@@ -80,6 +80,7 @@
 
 <script>
     // --- FIREBASE CONFIG ---
+ // --- FIREBASE CONFIG (Kept from your previous setup) ---
     const firebaseConfig = {
         apiKey: "AIzaSyDSva9HPKcOyiH-mGHIxx8GINOg9xKH7qI",
         authDomain: "ignite-portal-e39db.firebaseapp.com",
@@ -92,14 +93,8 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    let testId = "";
-    let testQuestions = [];
-    let currentIndex = 0;
-    let userAnswers = {};
-    let flagged = new Set();
-    let startTime = 0;
-    let questionStartTime = 0;
-    let timerInt;
+    let testId = "", testQuestions = [], currentIndex = 0, userAnswers = {}, flagged = new Set();
+    let startTime = 0, questionStartTime = 0, timerInt, currentSubject = "";
 
     // --- ADMIN LOGIC ---
     function showAdmin() {
@@ -120,64 +115,53 @@
         try {
             const data = JSON.parse(document.getElementById('json-input').value);
             db.ref('bank/' + sub).set(data).then(() => alert("Upload Successful!"));
-        } catch(e) { alert("Invalid JSON format. Check your brackets!"); }
+        } catch(e) { alert("Invalid JSON format!"); }
     }
 
     // --- TEST LOGIC ---
     async function startTest(subject) {
+        currentSubject = subject;
         const snapshot = await db.ref('bank/' + subject).get();
-        if(!snapshot.exists()) return alert("No questions in database. Upload them first!");
+        if(!snapshot.exists()) return alert("No questions found!");
         
-        const allQuestions = snapshot.val();
-        testQuestions = allQuestions.sort(() => 0.5 - Math.random()).slice(0, 30);
+        testQuestions = snapshot.val().sort(() => 0.5 - Math.random()).slice(0, 30);
+        testId = subject + "_" + Date.now();
+        startTime = Date.now();
         
-        // Setup Test Session in DB
-        const now = new Date();
-        testId = subject + "_" + now.getTime();
-        startTime = now.getTime();
-        
-        db.ref('results/' + testId).set({
-            subject, 
-            status: "In Progress", 
-            startTime: now.toLocaleString()
-        });
+        db.ref('results/' + testId).set({ subject, status: "In Progress", startTime: new Date().toLocaleString() });
 
         document.getElementById('main-menu').classList.add('hidden');
         document.getElementById('test-screen').classList.remove('hidden');
         
         questionStartTime = Date.now();
-        renderNav();
-        startTimer(30 * 60);
         showQ();
     }
 
     function showQ() {
         const q = testQuestions[currentIndex];
         const passageBox = document.getElementById('passage-container');
-        if(q.passage) {
-            passageBox.innerHTML = q.passage;
-            passageBox.classList.remove('hidden');
-        } else { passageBox.classList.add('hidden'); }
+        passageBox.innerHTML = q.passage || "";
+        passageBox.classList.toggle('hidden', !q.passage);
 
         let html = `<div class="question-box"><h3>Question ${currentIndex+1}</h3><p>${q.q}</p>`;
         q.options.forEach(opt => {
             const chk = userAnswers[currentIndex] === opt ? "checked" : "";
-            html += `<label class="option"><input type="radio" name="o" value="${opt}" ${chk} onchange="save('${opt}')"> ${opt}</label>`;
+            html += `<label class="option"><input type="radio" name="o" value="${opt}" ${chk} onchange="saveAnswer('${opt}')"> ${opt}</label>`;
         });
         document.getElementById('question-area').innerHTML = html + `</div>`;
-        document.getElementById('submit-btn').style.display = (currentIndex === 29) ? 'block' : 'none';
+        document.getElementById('submit-btn').style.display = (Object.keys(userAnswers).length >= 25) ? 'block' : 'none';
         renderNav();
     }
 
-    function save(val) {
+    function saveAnswer(val) {
         const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
         userAnswers[currentIndex] = val;
         
-        // HEARTBEAT: Save to Firebase immediately
         db.ref('results/' + testId + '/responses/' + currentIndex).set({
             ans: val,
             time: timeSpent,
-            isCorrect: (val === testQuestions[currentIndex].a)
+            isCorrect: (val === testQuestions[currentIndex].a),
+            qText: testQuestions[currentIndex].q.substring(0, 50) + "..."
         });
         renderNav();
     }
@@ -187,15 +171,13 @@
         grid.innerHTML = "";
         for(let i=0; i<30; i++) {
             let cls = i === currentIndex ? "active-nav " : "";
-            if(userAnswers[i]) cls += "answered-nav ";
+            if(userAnswers[i]) cls += "answered-nav "; // ONLY blue if answer exists
             if(flagged.has(i)) cls += "flagged-nav ";
             grid.innerHTML += `<button class="btn-nav ${cls}" onclick="jump(${i})">${i+1}</button>`;
         }
     }
 
     function jump(i) {
-        // Record time for previous question before jumping
-        save(userAnswers[currentIndex] || "Skipped");
         currentIndex = i;
         questionStartTime = Date.now();
         showQ();
@@ -217,32 +199,60 @@
         clearInterval(timerInt);
         let score = 0;
         testQuestions.forEach((q, i) => { if(userAnswers[i] === q.a) score++; });
-        
-        await db.ref('results/' + testId).update({
-            status: "Completed",
-            finalScore: score,
-            totalTime: Math.floor((Date.now() - startTime) / 1000)
-        });
-        alert("Test Submitted! Score: " + score + "/30");
+        await db.ref('results/' + testId).update({ status: "Completed", finalScore: score });
+        alert("Submitted! Score: " + score + "/30");
         location.reload();
     }
 
+    // --- ENHANCED ADMIN RESULTS ---
     async function loadResults() {
         const snap = await db.ref('results').get();
         const list = document.getElementById('results-list');
         list.innerHTML = "";
-        if(!snap.exists()) return list.innerHTML = "No results yet.";
+        if(!snap.exists()) return;
         
         snap.forEach(child => {
             const data = child.val();
-            list.innerHTML += `<div style="border:1px solid #ccc; padding:10px; margin:5px; border-radius:5px;">
-                <strong>${data.subject}</strong> - ${data.startTime}<br>
-                Score: ${data.finalScore || 'In Progress'} / 30 | Status: ${data.status}
+            const id = child.key;
+            let detailsHtml = `<div id="det-${id}" class="hidden" style="background:#f9f9f9; padding:10px; font-size:0.85em;">
+                <table border="1" style="width:100%; border-collapse:collapse;">
+                    <tr><th>Q</th><th>Time</th><th>Result</th></tr>`;
+            
+            if(data.responses) {
+                Object.keys(data.responses).forEach(k => {
+                    const r = data.responses[k];
+                    const timeCls = r.time > 90 ? 'color:red; font-weight:bold;' : '';
+                    detailsHtml += `<tr>
+                        <td>${r.qText}</td>
+                        <td style="${timeCls}">${r.time}s</td>
+                        <td>${r.isCorrect ? '✅' : '❌'}</td>
+                    </tr>`;
+                });
+            }
+            detailsHtml += `</table></div>`;
+
+            list.innerHTML += `<div style="border:1px solid #ccc; padding:15px; margin:10px 0; border-radius:8px; background:white;">
+                <strong>${data.subject}</strong> | ${data.startTime} <br>
+                Score: <span style="color:#2980b9; font-weight:bold;">${data.finalScore || 'In Progress'} / 30</span>
+                <button class="btn" style="padding:5px 10px; font-size:0.8em; margin-left:10px;" onclick="document.getElementById('det-${id}').classList.toggle('hidden')">Show Details</button>
+                ${detailsHtml}
             </div>`;
         });
     }
 
-    function resetResults() { if(confirm("Clear all student history?")) db.ref('results').remove(); }
+    function resetResults() { 
+        if(confirm("Wipe all history?")) {
+            db.ref('results').remove().then(() => {
+                document.getElementById('results-list').innerHTML = "History Cleared.";
+                alert("Data Deleted.");
+            });
+        } 
+    }
+    
+    // Auto-start timer on test start
+    window.startTimer = startTimer; 
+</script>
 </script>
 </body>
 </html>
+
