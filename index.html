@@ -142,38 +142,28 @@
         if(sec === 'manager') loadQuestions();
     }
 
-    // --- NEW BULK UPLOAD (ADD ONLY / MERGE) ---
+    // --- BULK UPLOAD (ADD ONLY / MERGE) ---
     async function processUpload() {
         const sub = document.getElementById('upload-subject').value;
         const input = document.getElementById('json-input').value;
         try {
             const newQuestions = JSON.parse(input);
             const bankRef = db.ref('bank/' + sub);
-            
-            // We use push() for each question to APPEND them without overwriting the whole bank
             const promises = newQuestions.map(q => {
-                return bankRef.push({
-                    ...q,
-                    archived: false,
-                    dateAdded: Date.now()
-                });
+                return bankRef.push({...q, archived: false, dateAdded: Date.now()});
             });
-
             await Promise.all(promises);
-            alert("Success! " + newQuestions.length + " new questions added to " + sub + ". (Old questions kept)");
-            document.getElementById('json-input').value = ""; // Clear box
-        } catch(e) { 
-            alert("Error: Invalid JSON format. Make sure it's an [Array] of {Objects}."); 
-        }
+            alert("Success! " + newQuestions.length + " questions added to " + sub);
+            document.getElementById('json-input').value = "";
+        } catch(e) { alert("Invalid JSON format!"); }
     }
 
-    // --- QUESTION MANAGER (WITH BULK DELETE) ---
+    // --- QUESTION MANAGER ---
     async function loadQuestions() {
         const sub = document.getElementById('mgmt-subject').value;
         const snap = await db.ref('bank/' + sub).get();
         const tbody = document.getElementById('questions-table-body');
         tbody.innerHTML = "<tr><td colspan='4'>Loading...</td></tr>";
-        
         allMgmtQuestions = [];
         if(snap.exists()) {
             snap.forEach(child => {
@@ -188,7 +178,6 @@
     function renderMgmtTable(data) {
         const tbody = document.getElementById('questions-table-body');
         if(data.length === 0) { tbody.innerHTML = "<tr><td colspan='4'>No questions found.</td></tr>"; return; }
-        
         tbody.innerHTML = data.map(q => `
             <tr class="${q.archived ? 'archived-row' : ''}">
                 <td><input type="checkbox" class="q-row-check" data-key="${q.firebaseKey}"></td>
@@ -205,77 +194,52 @@
         renderMgmtTable(filtered);
     }
 
-    function toggleAll(master) {
-        document.querySelectorAll('.q-row-check').forEach(cb => cb.checked = master.checked);
-    }
-
     async function bulkAction(type) {
         const sub = document.getElementById('mgmt-subject').value;
         const selected = Array.from(document.querySelectorAll('.q-row-check:checked')).map(cb => cb.dataset.key);
-        
-        if(selected.length === 0) return alert("Please select questions first.");
-
-        if(type === 'delete') {
-            if(!confirm("Are you sure? This will permanently DELETE " + selected.length + " questions. Past result reports for these specific questions may show missing text.")) return;
-        }
-
+        if(selected.length === 0) return alert("Select items first.");
+        if(type === 'delete' && !confirm("Delete permanently?")) return;
         const updates = {};
         selected.forEach(key => {
             if(type === 'archive') updates[key + '/archived'] = true;
             if(type === 'unarchive') updates[key + '/archived'] = false;
-            if(type === 'delete') updates[key] = null; // Setting to null deletes in Firebase
+            if(type === 'delete') updates[key] = null;
         });
-
         await db.ref('bank/' + sub).update(updates);
         loadQuestions();
-        alert("Operation successful.");
     }
+
+    function toggleAll(master) { document.querySelectorAll('.q-row-check').forEach(cb => cb.checked = master.checked); }
 
     async function editQ(key) {
         const sub = document.getElementById('mgmt-subject').value;
         const snap = await db.ref(`bank/${sub}/${key}`).get();
         const q = snap.val();
         const newText = prompt("Update Question Text:", q.q);
-        if(newText !== null && newText !== "") {
-            await db.ref(`bank/${sub}/${key}`).update({ q: newText });
-            loadQuestions();
-        }
+        if(newText) { await db.ref(`bank/${sub}/${key}`).update({ q: newText }); loadQuestions(); }
     }
 
-    // --- TEST ENGINE (Remains the same for stability) ---
+    // --- TEST ENGINE ---
     async function startTest(subject) {
         const snapshot = await db.ref('bank/' + subject).get();
-        if(!snapshot.exists()) return alert("No questions available for " + subject);
-        
+        if(!snapshot.exists()) return alert("Bank empty.");
         let pool = [];
-        snapshot.forEach(child => {
-            let q = child.val();
-            if(!q.archived) pool.push(q);
-        });
-
-        if(pool.length < 30) return alert("Not enough Live questions (Need 30, only found " + pool.length + "). Please unarchive more.");
-        
+        snapshot.forEach(child => { if(!child.val().archived) pool.push(child.val()); });
+        if(pool.length < 30) return alert("Need 30 live questions.");
         testQuestions = pool.sort(() => 0.5 - Math.random()).slice(0, 30);
         const now = new Date();
         testId = subject + "_" + now.getTime();
         startTime = now.getTime();
-        
-        await db.ref('results/' + testId).set({
-            subject, status: "In Progress", startTime: now.toLocaleString(), timestamp: now.getTime()
-        });
-
+        await db.ref('results/' + testId).set({ subject, status: "In Progress", startTime: now.toLocaleString(), timestamp: now.getTime() });
         document.getElementById('main-menu').classList.add('hidden');
         document.getElementById('test-screen').classList.remove('hidden');
-        questionStartTime = Date.now();
-        startTimer(30 * 60);
-        showQ();
+        questionStartTime = Date.now(); startTimer(30 * 60); showQ();
     }
 
     function showQ() {
         const q = testQuestions[currentIndex];
         const passageBox = document.getElementById('passage-container');
-        passageBox.innerHTML = q.passage || "";
-        passageBox.classList.toggle('hidden', !q.passage);
+        passageBox.innerHTML = q.passage || ""; passageBox.classList.toggle('hidden', !q.passage);
         let html = `<div class="question-box"><h3>Question ${currentIndex+1}</h3><p>${q.q}</p>`;
         q.options.forEach(opt => {
             const chk = userAnswers[currentIndex] === opt ? "checked" : "";
@@ -323,20 +287,55 @@
         alert("Submitted! Score: " + score); location.reload();
     }
 
+    // --- RESTORED AUDIT REPORT LOGIC ---
     async function loadResults() {
         const snap = await db.ref('results').get();
         const list = document.getElementById('results-list');
-        list.innerHTML = "";
-        if(!snap.exists()) return;
+        list.innerHTML = "Loading...";
+        if(!snap.exists()) { list.innerHTML = "No history."; return; }
+        
         let arr = []; snap.forEach(c => { let v = c.val(); v.id = c.key; arr.push(v); });
-        arr.sort((a,b) => b.timestamp - a.timestamp).forEach(data => {
-            list.innerHTML += `<div style="border:1px solid #ccc; padding:10px; margin:5px; border-radius:8px; background:white;">
-                <strong>${data.subject}</strong> | ${data.startTime} | Score: ${data.finalScore !== undefined ? data.finalScore : '...'}
+        arr.sort((a,b) => b.timestamp - a.timestamp);
+
+        list.innerHTML = "";
+        arr.forEach(data => {
+            let rows = "";
+            if(data.responses) {
+                Object.keys(data.responses).forEach(k => {
+                    const r = data.responses[k];
+                    const timeCls = r.time > 90 ? 'color:red; font-weight:bold;' : '';
+                    rows += `<tr style="border-bottom:1px solid #ddd;">
+                        <td style="padding:8px;">${parseInt(k)+1}. ${r.qText}</td>
+                        <td style="padding:8px; ${timeCls}">${r.time}s</td>
+                        <td style="padding:8px; color:blue;">${r.ans}</td>
+                        <td style="padding:8px; color:green;">${r.correctAnswer}</td>
+                        <td style="padding:8px; text-align:center;">${r.isCorrect ? '✅' : '❌'}</td>
+                    </tr>`;
+                });
+            }
+
+            let auditHtml = `<div id="audit-${data.id}" class="hidden" style="background:#fff; border:1px solid #eee; margin-top:10px; overflow-x:auto;">
+                <table style="width:100%; text-align:left; border-collapse:collapse; font-size:0.8em;">
+                    <thead style="background:#eee;">
+                        <tr><th style="padding:8px;">Question</th><th style="padding:8px;">Time</th><th style="padding:8px;">Student</th><th style="padding:8px;">Correct</th><th style="padding:8px;">Res</th></tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>`;
+
+            list.innerHTML += `<div style="border:1px solid #ccc; padding:15px; margin:10px 0; border-radius:8px; background:white;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span><strong>${data.subject}</strong> | ${data.startTime}</span>
+                    <span>Score: <span style="color:#2980b9; font-weight:bold;">${data.finalScore !== undefined ? data.finalScore : '...'} / 30</span></span>
+                    <button class="btn btn-primary" onclick="document.getElementById('audit-${data.id}').classList.toggle('hidden')">Audit Paper</button>
+                </div>
+                ${auditHtml}
             </div>`;
         });
     }
 
-    function resetResults() { if(confirm("Wipe all?")) db.ref('results').remove().then(() => location.reload()); }
+    function resetResults() { if(confirm("Wipe history?")) db.ref('results').remove().then(() => location.reload()); }
 </script>
 </body>
 </html>
+
