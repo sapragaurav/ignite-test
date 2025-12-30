@@ -3,78 +3,109 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IGNITE Portal V3.0</title>
+    <title>IGNITE CMS V3.4</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; margin: 0; padding: 0; }
-        .container { max-width: 900px; margin: 20px auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .container { max-width: 1000px; margin: 20px auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .hidden { display: none; }
-        .btn { padding: 12px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: 0.3s; }
+        .btn { padding: 10px 15px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; margin: 2px; }
         .btn-primary { background: #3498db; color: white; }
-        .btn-nav { background: #ecf0f1; border: 1px solid #bdc3c7; width: 42px; height: 42px; margin: 3px; border-radius: 5px; }
+        .btn-danger { background: #e74c3c; color: white; }
+        .btn-warn { background: #f39c12; color: white; }
+        .btn-nav { background: #ecf0f1; border: 1px solid #bdc3c7; width: 40px; height: 40px; margin: 3px; border-radius: 5px; }
         .active-nav { border: 2px solid #2c3e50; background: #d5d8dc; }
         .answered-nav { background: #3498db !important; color: white; }
-        .flagged-nav { background: #f1c40f !important; }
         .timer { font-size: 1.8em; font-weight: bold; color: #e74c3c; text-align: right; }
         .nav-grid { display: flex; flex-wrap: wrap; justify-content: center; margin-bottom: 20px; }
-        .question-box { border: 1px solid #eee; padding: 20px; border-radius: 10px; background: #fff; }
-        .option { display: block; padding: 15px; margin: 10px 0; border: 1px solid #eee; border-radius: 8px; cursor: pointer; }
-        .option:hover { background: #f0f7fd; }
-        .passage-box { background: #f9f9f9; border-left: 5px solid #3498db; padding: 15px; margin-bottom: 15px; font-style: italic; }
-        @media (max-width: 600px) { .container { margin: 10px; } .btn { width: 100%; margin: 5px 0; } }
+        .question-box { border: 1px solid #eee; padding: 20px; border-radius: 10px; }
+        .option { display: block; padding: 12px; margin: 8px 0; border: 1px solid #eee; border-radius: 8px; cursor: pointer; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 0.9em; }
+        th, td { padding: 10px; border: 1px solid #ddd; text-align: left; }
+        .archived-row { background: #f9ebea; color: #a93226; }
+        .sticky-bar { position: sticky; top: 0; background: white; padding: 10px; border-bottom: 2px solid #3498db; z-index: 100; }
+        @media (max-width: 600px) { .btn { width: 100%; } }
     </style>
 </head>
 <body>
 
 <div id="app" class="container">
     <div id="main-menu">
-        <h1 style="text-align:center;">IGNITE Online Portal</h1>
+        <h1 style="text-align:center;">IGNITE Portal V3.4</h1>
         <div style="display:grid; gap:10px;">
             <button class="btn btn-primary" onclick="startTest('Maths')">Start Maths Test</button>
             <button class="btn btn-primary" onclick="startTest('English')">Start English Test</button>
             <button class="btn btn-primary" onclick="startTest('General')">Start General Ability</button>
         </div>
-        <hr style="margin:20px 0;">
-        <button class="btn" style="background:#95a5a6; color:white; width:100%;" onclick="showAdmin()">Admin Login</button>
+        <button class="btn" style="background:#95a5a6; color:white; width:100%; margin-top:20px;" onclick="showAdmin()">Admin Login</button>
     </div>
 
     <div id="admin-panel" class="hidden">
         <h2>Admin Dashboard</h2>
-        <button class="btn btn-primary" onclick="showSection('results')">View Results</button>
-        <button class="btn btn-primary" onclick="showSection('upload')">Bulk Upload Questions</button>
-        <button class="btn" onclick="location.reload()">Back to Menu</button>
-        
-        <div id="admin-content" style="margin-top:20px;">
-            <div id="upload-area" class="hidden">
-                <p>Paste JSON Question Bank here:</p>
-                <textarea id="json-input" style="width:100%; height:200px; font-family:monospace;"></textarea><br>
-                <select id="upload-subject" class="btn">
+        <div class="sticky-bar">
+            <button class="btn btn-primary" onclick="showSection('results')">Results</button>
+            <button class="btn btn-primary" onclick="showSection('manager')">Question Manager</button>
+            <button class="btn btn-warn" onclick="showSection('upload')">Bulk Upload</button>
+            <button class="btn" onclick="location.reload()">Exit Admin</button>
+        </div>
+
+        <div id="manager-area" class="hidden">
+            <h3>Manage Questions</h3>
+            <div style="margin: 10px 0;">
+                <select id="mgmt-subject" class="btn" onchange="loadQuestions()">
                     <option value="Maths">Maths</option>
                     <option value="English">English</option>
                     <option value="General">General Ability</option>
                 </select>
-                <button class="btn btn-primary" onclick="processUpload()">Save to Database</button>
+                <input type="text" id="mgmt-search" placeholder="Search questions..." class="btn" style="width:250px; border:1px solid #ccc;" onkeyup="filterQuestions()">
             </div>
-            <div id="results-area" class="hidden">
-                <button class="btn" style="background:#e74c3c; color:white;" onclick="resetResults()">Reset All Data</button>
-                <div id="results-list"></div>
+            <div style="background:#eee; padding:10px; border-radius:5px;">
+                <strong>Bulk Actions:</strong>
+                <button class="btn btn-warn" onclick="bulkAction('archive')">Archive Selected</button>
+                <button class="btn btn-primary" onclick="bulkAction('unarchive')">Unarchive Selected</button>
+                <button class="btn btn-danger" onclick="bulkAction('delete')">Delete Selected</button>
             </div>
+            <div id="questions-list-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" onclick="toggleAll(this)"></th>
+                            <th>Question Preview</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="questions-table-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="results-area" class="hidden">
+            <button class="btn btn-danger" onclick="resetResults()">Clear All History</button>
+            <div id="results-list"></div>
+        </div>
+
+        <div id="upload-area" class="hidden">
+            <textarea id="json-input" style="width:100%; height:150px;" placeholder="Paste JSON Question Array here..."></textarea>
+            <select id="upload-subject" class="btn">
+                <option value="Maths">Maths</option><option value="English">English</option><option value="General">General Ability</option>
+            </select>
+            <button class="btn btn-primary" onclick="processUpload()">Import & Overwrite</button>
         </div>
     </div>
 
     <div id="test-screen" class="hidden">
         <div class="timer" id="timer">30:00</div>
         <div class="nav-grid" id="nav-grid"></div>
-        <div id="passage-container" class="passage-box hidden"></div>
+        <div id="passage-container" class="hidden" style="background:#f9f9f9; padding:15px; border-left:5px solid #3498db; margin-bottom:15px;"></div>
         <div id="question-area"></div>
-        <div style="display:flex; justify-content: space-between; margin-top:20px; flex-wrap:wrap;">
-            <button class="btn" style="background:#bdc3c7;" onclick="prev()">Previous</button>
-            <button class="btn btn-flag" onclick="toggleFlag()">Flag</button>
-            <button class="btn" style="background:#bdc3c7;" onclick="next()">Next</button>
+        <div style="display:flex; justify-content: space-between; margin-top:20px;">
+            <button class="btn btn-primary" onclick="prev()">Previous</button>
+            <button class="btn btn-warn" onclick="toggleFlag()">Flag</button>
+            <button class="btn btn-primary" onclick="next()">Next</button>
         </div>
-        <button id="submit-btn" class="btn" style="background:#27ae60; color:white; width:100%; margin-top:20px; display:none;" onclick="finishTest()">Final Submit</button>
+        <button id="submit-btn" class="btn btn-danger" style="width:100%; margin-top:20px; display:none;" onclick="finishTest()">Submit Paper</button>
     </div>
 </div>
 
@@ -93,52 +124,148 @@
     const db = firebase.database();
 
     let testId = "", testQuestions = [], currentIndex = 0, userAnswers = {}, flagged = new Set();
-    let startTime = 0, questionStartTime = 0, timerInt, currentSubject = "";
+    let startTime = 0, questionStartTime = 0, timerInt, allMgmtQuestions = [];
 
-    // --- ADMIN LOGIC ---
+    // --- ADMIN NAVIGATION ---
     function showAdmin() {
-        if(prompt("Password:") === "Admin 123") {
+        if(prompt("Admin Password:") === "Admin 123") {
             document.getElementById('main-menu').classList.add('hidden');
             document.getElementById('admin-panel').classList.remove('hidden');
+            showSection('results');
         }
     }
 
     function showSection(sec) {
-        document.getElementById('upload-area').classList.toggle('hidden', sec !== 'upload');
-        document.getElementById('results-area').classList.toggle('hidden', sec !== 'results');
+        ['results-area', 'manager-area', 'upload-area'].forEach(id => document.getElementById(id).classList.add('hidden'));
+        document.getElementById(sec + '-area').classList.remove('hidden');
         if(sec === 'results') loadResults();
+        if(sec === 'manager') loadQuestions();
     }
 
-    function processUpload() {
+    // --- NEW BULK UPLOAD (ADD ONLY / MERGE) ---
+    async function processUpload() {
         const sub = document.getElementById('upload-subject').value;
+        const input = document.getElementById('json-input').value;
         try {
-            const data = JSON.parse(document.getElementById('json-input').value);
-            db.ref('bank/' + sub).set(data).then(() => alert("Upload Successful!"));
-        } catch(e) { alert("Invalid JSON format!"); }
+            const newQuestions = JSON.parse(input);
+            const bankRef = db.ref('bank/' + sub);
+            
+            // We use push() for each question to APPEND them without overwriting the whole bank
+            const promises = newQuestions.map(q => {
+                return bankRef.push({
+                    ...q,
+                    archived: false,
+                    dateAdded: Date.now()
+                });
+            });
+
+            await Promise.all(promises);
+            alert("Success! " + newQuestions.length + " new questions added to " + sub + ". (Old questions kept)");
+            document.getElementById('json-input').value = ""; // Clear box
+        } catch(e) { 
+            alert("Error: Invalid JSON format. Make sure it's an [Array] of {Objects}."); 
+        }
     }
 
-    // --- TEST LOGIC ---
-    async function startTest(subject) {
-        currentSubject = subject;
-        const snapshot = await db.ref('bank/' + subject).get();
-        if(!snapshot.exists()) return alert("No questions found!");
+    // --- QUESTION MANAGER (WITH BULK DELETE) ---
+    async function loadQuestions() {
+        const sub = document.getElementById('mgmt-subject').value;
+        const snap = await db.ref('bank/' + sub).get();
+        const tbody = document.getElementById('questions-table-body');
+        tbody.innerHTML = "<tr><td colspan='4'>Loading...</td></tr>";
         
-        testQuestions = snapshot.val().sort(() => 0.5 - Math.random()).slice(0, 30);
+        allMgmtQuestions = [];
+        if(snap.exists()) {
+            snap.forEach(child => {
+                let q = child.val();
+                q.firebaseKey = child.key;
+                allMgmtQuestions.push(q);
+            });
+        }
+        renderMgmtTable(allMgmtQuestions);
+    }
+
+    function renderMgmtTable(data) {
+        const tbody = document.getElementById('questions-table-body');
+        if(data.length === 0) { tbody.innerHTML = "<tr><td colspan='4'>No questions found.</td></tr>"; return; }
+        
+        tbody.innerHTML = data.map(q => `
+            <tr class="${q.archived ? 'archived-row' : ''}">
+                <td><input type="checkbox" class="q-row-check" data-key="${q.firebaseKey}"></td>
+                <td>${q.q}</td>
+                <td>${q.archived ? '<b>Archived</b>' : 'Live'}</td>
+                <td><button class="btn btn-primary" style="padding:5px;" onclick="editQ('${q.firebaseKey}')">Edit</button></td>
+            </tr>
+        `).join('');
+    }
+
+    function filterQuestions() {
+        const term = document.getElementById('mgmt-search').value.toLowerCase();
+        const filtered = allMgmtQuestions.filter(q => q.q.toLowerCase().includes(term));
+        renderMgmtTable(filtered);
+    }
+
+    function toggleAll(master) {
+        document.querySelectorAll('.q-row-check').forEach(cb => cb.checked = master.checked);
+    }
+
+    async function bulkAction(type) {
+        const sub = document.getElementById('mgmt-subject').value;
+        const selected = Array.from(document.querySelectorAll('.q-row-check:checked')).map(cb => cb.dataset.key);
+        
+        if(selected.length === 0) return alert("Please select questions first.");
+
+        if(type === 'delete') {
+            if(!confirm("Are you sure? This will permanently DELETE " + selected.length + " questions. Past result reports for these specific questions may show missing text.")) return;
+        }
+
+        const updates = {};
+        selected.forEach(key => {
+            if(type === 'archive') updates[key + '/archived'] = true;
+            if(type === 'unarchive') updates[key + '/archived'] = false;
+            if(type === 'delete') updates[key] = null; // Setting to null deletes in Firebase
+        });
+
+        await db.ref('bank/' + sub).update(updates);
+        loadQuestions();
+        alert("Operation successful.");
+    }
+
+    async function editQ(key) {
+        const sub = document.getElementById('mgmt-subject').value;
+        const snap = await db.ref(`bank/${sub}/${key}`).get();
+        const q = snap.val();
+        const newText = prompt("Update Question Text:", q.q);
+        if(newText !== null && newText !== "") {
+            await db.ref(`bank/${sub}/${key}`).update({ q: newText });
+            loadQuestions();
+        }
+    }
+
+    // --- TEST ENGINE (Remains the same for stability) ---
+    async function startTest(subject) {
+        const snapshot = await db.ref('bank/' + subject).get();
+        if(!snapshot.exists()) return alert("No questions available for " + subject);
+        
+        let pool = [];
+        snapshot.forEach(child => {
+            let q = child.val();
+            if(!q.archived) pool.push(q);
+        });
+
+        if(pool.length < 30) return alert("Not enough Live questions (Need 30, only found " + pool.length + "). Please unarchive more.");
+        
+        testQuestions = pool.sort(() => 0.5 - Math.random()).slice(0, 30);
         const now = new Date();
         testId = subject + "_" + now.getTime();
         startTime = now.getTime();
         
-        db.ref('results/' + testId).set({ 
-            subject, 
-            status: "In Progress", 
-            startTime: now.toLocaleString(),
-            timestamp: now.getTime(), // Added for sorting
-            fullPaper: testQuestions
+        await db.ref('results/' + testId).set({
+            subject, status: "In Progress", startTime: now.toLocaleString(), timestamp: now.getTime()
         });
 
         document.getElementById('main-menu').classList.add('hidden');
         document.getElementById('test-screen').classList.remove('hidden');
-        
         questionStartTime = Date.now();
         startTimer(30 * 60);
         showQ();
@@ -149,7 +276,6 @@
         const passageBox = document.getElementById('passage-container');
         passageBox.innerHTML = q.passage || "";
         passageBox.classList.toggle('hidden', !q.passage);
-
         let html = `<div class="question-box"><h3>Question ${currentIndex+1}</h3><p>${q.q}</p>`;
         q.options.forEach(opt => {
             const chk = userAnswers[currentIndex] === opt ? "checked" : "";
@@ -164,11 +290,8 @@
         const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
         userAnswers[currentIndex] = val;
         db.ref('results/' + testId + '/responses/' + currentIndex).set({
-            ans: val,
-            time: timeSpent,
-            correctAnswer: testQuestions[currentIndex].a,
-            isCorrect: (val === testQuestions[currentIndex].a),
-            qText: testQuestions[currentIndex].q
+            ans: val, time: timeSpent, correctAnswer: testQuestions[currentIndex].a,
+            isCorrect: (val === testQuestions[currentIndex].a), qText: testQuestions[currentIndex].q
         });
         renderNav();
     }
@@ -177,23 +300,14 @@
         const grid = document.getElementById('nav-grid');
         grid.innerHTML = "";
         for(let i=0; i<30; i++) {
-            let cls = i === currentIndex ? "active-nav " : "";
-            if(userAnswers[i]) cls += "answered-nav ";
-            if(flagged.has(i)) cls += "flagged-nav ";
+            let cls = i === currentIndex ? "active-nav " : (userAnswers[i] ? "answered-nav " : "");
             grid.innerHTML += `<button class="btn-nav ${cls}" onclick="jump(${i})">${i+1}</button>`;
         }
     }
 
-    function jump(i) {
-        currentIndex = i;
-        questionStartTime = Date.now();
-        showQ();
-    }
-
+    function jump(i) { currentIndex = i; questionStartTime = Date.now(); showQ(); }
     function next() { if(currentIndex < 29) jump(currentIndex + 1); }
     function prev() { if(currentIndex > 0) jump(currentIndex - 1); }
-    function toggleFlag() { flagged.has(currentIndex) ? flagged.delete(currentIndex) : flagged.add(currentIndex); renderNav(); }
-
     function startTimer(sec) {
         timerInt = setInterval(() => {
             let m = Math.floor(sec/60), s = sec%60;
@@ -201,81 +315,28 @@
             if(sec-- <= 0) finishTest();
         }, 1000);
     }
-
     async function finishTest() {
         clearInterval(timerInt);
         let score = 0;
         testQuestions.forEach((q, i) => { if(userAnswers[i] === q.a) score++; });
         await db.ref('results/' + testId).update({ status: "Completed", finalScore: score });
-        alert("Submitted! Score: " + score + "/30");
-        location.reload();
+        alert("Submitted! Score: " + score); location.reload();
     }
 
-    // --- SORTED ADMIN RESULTS ---
     async function loadResults() {
         const snap = await db.ref('results').get();
         const list = document.getElementById('results-list');
-        list.innerHTML = "Loading...";
-        if(!snap.exists()) { list.innerHTML = "No history found."; return; }
-        
-        let resultsArray = [];
-        snap.forEach(child => {
-            let item = child.val();
-            item.id = child.key;
-            resultsArray.push(item);
-        });
-
-        // SORT BY TIMESTAMP: Newest first
-        resultsArray.sort((a, b) => b.timestamp - a.timestamp);
-
         list.innerHTML = "";
-        resultsArray.forEach(data => {
-            const id = data.id;
-            let tableRows = "";
-            if(data.responses) {
-                Object.keys(data.responses).forEach(k => {
-                    const r = data.responses[k];
-                    const timeCls = r.time > 90 ? 'color:red; font-weight:bold;' : '';
-                    tableRows += `<tr style="border-bottom:1px solid #ddd;">
-                        <td style="padding:8px;">${parseInt(k)+1}. ${r.qText}</td>
-                        <td style="padding:8px; ${timeCls}">${r.time}s</td>
-                        <td style="padding:8px; color:blue;">${r.ans}</td>
-                        <td style="padding:8px; color:green;">${r.correctAnswer}</td>
-                        <td style="padding:8px; text-align:center;">${r.isCorrect ? '✅' : '❌'}</td>
-                    </tr>`;
-                });
-            }
-
-            let detailsHtml = `<div id="det-${id}" class="hidden" style="background:#fff; margin-top:10px; border:1px solid #eee; overflow-x:auto;">
-                <table style="width:100%; text-align:left; border-collapse:collapse; font-size:0.8em;">
-                    <thead style="background:#eee;">
-                        <tr><th style="padding:8px;">Question</th><th style="padding:8px;">Time</th><th style="padding:8px;">Student</th><th style="padding:8px;">Correct</th><th style="padding:8px;">Res</th></tr>
-                    </thead>
-                    <tbody>${tableRows}</tbody>
-                </table>
-            </div>`;
-
-            list.innerHTML += `<div style="border:1px solid #ccc; padding:15px; margin:10px 0; border-radius:8px; background:white; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span><strong>${data.subject}</strong> | ${data.startTime}</span>
-                    <span>Score: <span style="color:#2980b9; font-weight:bold;">${data.finalScore !== undefined ? data.finalScore : '...'} / 30</span></span>
-                    <button class="btn btn-primary" style="padding:5px 15px;" onclick="document.getElementById('det-${id}').classList.toggle('hidden')">Audit Paper</button>
-                </div>
-                ${detailsHtml}
+        if(!snap.exists()) return;
+        let arr = []; snap.forEach(c => { let v = c.val(); v.id = c.key; arr.push(v); });
+        arr.sort((a,b) => b.timestamp - a.timestamp).forEach(data => {
+            list.innerHTML += `<div style="border:1px solid #ccc; padding:10px; margin:5px; border-radius:8px; background:white;">
+                <strong>${data.subject}</strong> | ${data.startTime} | Score: ${data.finalScore !== undefined ? data.finalScore : '...'}
             </div>`;
         });
     }
 
-    function resetResults() { 
-        if(confirm("Wipe all history?")) {
-            db.ref('results').remove().then(() => {
-                document.getElementById('results-list').innerHTML = "History Cleared.";
-                alert("Data Deleted.");
-            });
-        } 
-    }
+    function resetResults() { if(confirm("Wipe all?")) db.ref('results').remove().then(() => location.reload()); }
 </script>
 </body>
 </html>
-
-
