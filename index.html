@@ -79,7 +79,7 @@
 </div>
 
 <script>
-// --- FIREBASE CONFIG ---
+// --- FIREBASE CONFIG (Remains the same) ---
     const firebaseConfig = {
         apiKey: "AIzaSyDSva9HPKcOyiH-mGHIxx8GINOg9xKH7qI",
         authDomain: "ignite-portal-e39db.firebaseapp.com",
@@ -124,21 +124,23 @@
         if(!snapshot.exists()) return alert("No questions found!");
         
         testQuestions = snapshot.val().sort(() => 0.5 - Math.random()).slice(0, 30);
-        testId = subject + "_" + Date.now();
-        startTime = Date.now();
+        const now = new Date();
+        testId = subject + "_" + now.getTime();
+        startTime = now.getTime();
         
         db.ref('results/' + testId).set({ 
             subject, 
             status: "In Progress", 
-            startTime: new Date().toLocaleString(),
-            fullPaper: testQuestions // Save the specific questions used for this session
+            startTime: now.toLocaleString(),
+            timestamp: now.getTime(), // Added for sorting
+            fullPaper: testQuestions
         });
 
         document.getElementById('main-menu').classList.add('hidden');
         document.getElementById('test-screen').classList.remove('hidden');
         
         questionStartTime = Date.now();
-        startTimer(30 * 60); // TIMER FIXED
+        startTimer(30 * 60);
         showQ();
     }
 
@@ -154,8 +156,6 @@
             html += `<label class="option"><input type="radio" name="o" value="${opt}" ${chk} onchange="saveAnswer('${opt}')"> ${opt}</label>`;
         });
         document.getElementById('question-area').innerHTML = html + `</div>`;
-        
-        // SUBMIT BUTTON FIXED: Show on last question
         document.getElementById('submit-btn').style.display = (currentIndex === 29) ? 'block' : 'none';
         renderNav();
     }
@@ -163,8 +163,6 @@
     function saveAnswer(val) {
         const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
         userAnswers[currentIndex] = val;
-        
-        // Save detailed response to DB
         db.ref('results/' + testId + '/responses/' + currentIndex).set({
             ans: val,
             time: timeSpent,
@@ -213,18 +211,26 @@
         location.reload();
     }
 
-    // --- FULL AUDIT ADMIN RESULTS ---
+    // --- SORTED ADMIN RESULTS ---
     async function loadResults() {
         const snap = await db.ref('results').get();
         const list = document.getElementById('results-list');
-        list.innerHTML = "Loading Results...";
+        list.innerHTML = "Loading...";
         if(!snap.exists()) { list.innerHTML = "No history found."; return; }
         
-        list.innerHTML = "";
+        let resultsArray = [];
         snap.forEach(child => {
-            const data = child.val();
-            const id = child.key;
-            
+            let item = child.val();
+            item.id = child.key;
+            resultsArray.push(item);
+        });
+
+        // SORT BY TIMESTAMP: Newest first
+        resultsArray.sort((a, b) => b.timestamp - a.timestamp);
+
+        list.innerHTML = "";
+        resultsArray.forEach(data => {
+            const id = data.id;
             let tableRows = "";
             if(data.responses) {
                 Object.keys(data.responses).forEach(k => {
@@ -243,7 +249,7 @@
             let detailsHtml = `<div id="det-${id}" class="hidden" style="background:#fff; margin-top:10px; border:1px solid #eee; overflow-x:auto;">
                 <table style="width:100%; text-align:left; border-collapse:collapse; font-size:0.8em;">
                     <thead style="background:#eee;">
-                        <tr><th style="padding:8px;">Question Content</th><th style="padding:8px;">Time</th><th style="padding:8px;">Student Ans</th><th style="padding:8px;">Correct Ans</th><th style="padding:8px;">Res</th></tr>
+                        <tr><th style="padding:8px;">Question</th><th style="padding:8px;">Time</th><th style="padding:8px;">Student</th><th style="padding:8px;">Correct</th><th style="padding:8px;">Res</th></tr>
                     </thead>
                     <tbody>${tableRows}</tbody>
                 </table>
@@ -252,7 +258,7 @@
             list.innerHTML += `<div style="border:1px solid #ccc; padding:15px; margin:10px 0; border-radius:8px; background:white; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <span><strong>${data.subject}</strong> | ${data.startTime}</span>
-                    <span style="font-size:1.1em;">Score: <span style="color:#2980b9; font-weight:bold;">${data.finalScore !== undefined ? data.finalScore : '...'} / 30</span></span>
+                    <span>Score: <span style="color:#2980b9; font-weight:bold;">${data.finalScore !== undefined ? data.finalScore : '...'} / 30</span></span>
                     <button class="btn btn-primary" style="padding:5px 15px;" onclick="document.getElementById('det-${id}').classList.toggle('hidden')">Audit Paper</button>
                 </div>
                 ${detailsHtml}
@@ -271,4 +277,5 @@
 </script>
 </body>
 </html>
+
 
