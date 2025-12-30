@@ -79,8 +79,7 @@
 </div>
 
 <script>
-    // --- FIREBASE CONFIG ---
- // --- FIREBASE CONFIG (Kept from your previous setup) ---
+// --- FIREBASE CONFIG ---
     const firebaseConfig = {
         apiKey: "AIzaSyDSva9HPKcOyiH-mGHIxx8GINOg9xKH7qI",
         authDomain: "ignite-portal-e39db.firebaseapp.com",
@@ -128,12 +127,18 @@
         testId = subject + "_" + Date.now();
         startTime = Date.now();
         
-        db.ref('results/' + testId).set({ subject, status: "In Progress", startTime: new Date().toLocaleString() });
+        db.ref('results/' + testId).set({ 
+            subject, 
+            status: "In Progress", 
+            startTime: new Date().toLocaleString(),
+            fullPaper: testQuestions // Save the specific questions used for this session
+        });
 
         document.getElementById('main-menu').classList.add('hidden');
         document.getElementById('test-screen').classList.remove('hidden');
         
         questionStartTime = Date.now();
+        startTimer(30 * 60); // TIMER FIXED
         showQ();
     }
 
@@ -149,7 +154,9 @@
             html += `<label class="option"><input type="radio" name="o" value="${opt}" ${chk} onchange="saveAnswer('${opt}')"> ${opt}</label>`;
         });
         document.getElementById('question-area').innerHTML = html + `</div>`;
-        document.getElementById('submit-btn').style.display = (Object.keys(userAnswers).length >= 25) ? 'block' : 'none';
+        
+        // SUBMIT BUTTON FIXED: Show on last question
+        document.getElementById('submit-btn').style.display = (currentIndex === 29) ? 'block' : 'none';
         renderNav();
     }
 
@@ -157,11 +164,13 @@
         const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
         userAnswers[currentIndex] = val;
         
+        // Save detailed response to DB
         db.ref('results/' + testId + '/responses/' + currentIndex).set({
             ans: val,
             time: timeSpent,
+            correctAnswer: testQuestions[currentIndex].a,
             isCorrect: (val === testQuestions[currentIndex].a),
-            qText: testQuestions[currentIndex].q.substring(0, 50) + "..."
+            qText: testQuestions[currentIndex].q
         });
         renderNav();
     }
@@ -171,7 +180,7 @@
         grid.innerHTML = "";
         for(let i=0; i<30; i++) {
             let cls = i === currentIndex ? "active-nav " : "";
-            if(userAnswers[i]) cls += "answered-nav "; // ONLY blue if answer exists
+            if(userAnswers[i]) cls += "answered-nav ";
             if(flagged.has(i)) cls += "flagged-nav ";
             grid.innerHTML += `<button class="btn-nav ${cls}" onclick="jump(${i})">${i+1}</button>`;
         }
@@ -204,37 +213,48 @@
         location.reload();
     }
 
-    // --- ENHANCED ADMIN RESULTS ---
+    // --- FULL AUDIT ADMIN RESULTS ---
     async function loadResults() {
         const snap = await db.ref('results').get();
         const list = document.getElementById('results-list');
-        list.innerHTML = "";
-        if(!snap.exists()) return;
+        list.innerHTML = "Loading Results...";
+        if(!snap.exists()) { list.innerHTML = "No history found."; return; }
         
+        list.innerHTML = "";
         snap.forEach(child => {
             const data = child.val();
             const id = child.key;
-            let detailsHtml = `<div id="det-${id}" class="hidden" style="background:#f9f9f9; padding:10px; font-size:0.85em;">
-                <table border="1" style="width:100%; border-collapse:collapse;">
-                    <tr><th>Q</th><th>Time</th><th>Result</th></tr>`;
             
+            let tableRows = "";
             if(data.responses) {
                 Object.keys(data.responses).forEach(k => {
                     const r = data.responses[k];
                     const timeCls = r.time > 90 ? 'color:red; font-weight:bold;' : '';
-                    detailsHtml += `<tr>
-                        <td>${r.qText}</td>
-                        <td style="${timeCls}">${r.time}s</td>
-                        <td>${r.isCorrect ? '✅' : '❌'}</td>
+                    tableRows += `<tr style="border-bottom:1px solid #ddd;">
+                        <td style="padding:8px;">${parseInt(k)+1}. ${r.qText}</td>
+                        <td style="padding:8px; ${timeCls}">${r.time}s</td>
+                        <td style="padding:8px; color:blue;">${r.ans}</td>
+                        <td style="padding:8px; color:green;">${r.correctAnswer}</td>
+                        <td style="padding:8px; text-align:center;">${r.isCorrect ? '✅' : '❌'}</td>
                     </tr>`;
                 });
             }
-            detailsHtml += `</table></div>`;
 
-            list.innerHTML += `<div style="border:1px solid #ccc; padding:15px; margin:10px 0; border-radius:8px; background:white;">
-                <strong>${data.subject}</strong> | ${data.startTime} <br>
-                Score: <span style="color:#2980b9; font-weight:bold;">${data.finalScore || 'In Progress'} / 30</span>
-                <button class="btn" style="padding:5px 10px; font-size:0.8em; margin-left:10px;" onclick="document.getElementById('det-${id}').classList.toggle('hidden')">Show Details</button>
+            let detailsHtml = `<div id="det-${id}" class="hidden" style="background:#fff; margin-top:10px; border:1px solid #eee; overflow-x:auto;">
+                <table style="width:100%; text-align:left; border-collapse:collapse; font-size:0.8em;">
+                    <thead style="background:#eee;">
+                        <tr><th style="padding:8px;">Question Content</th><th style="padding:8px;">Time</th><th style="padding:8px;">Student Ans</th><th style="padding:8px;">Correct Ans</th><th style="padding:8px;">Res</th></tr>
+                    </thead>
+                    <tbody>${tableRows}</tbody>
+                </table>
+            </div>`;
+
+            list.innerHTML += `<div style="border:1px solid #ccc; padding:15px; margin:10px 0; border-radius:8px; background:white; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span><strong>${data.subject}</strong> | ${data.startTime}</span>
+                    <span style="font-size:1.1em;">Score: <span style="color:#2980b9; font-weight:bold;">${data.finalScore !== undefined ? data.finalScore : '...'} / 30</span></span>
+                    <button class="btn btn-primary" style="padding:5px 15px;" onclick="document.getElementById('det-${id}').classList.toggle('hidden')">Audit Paper</button>
+                </div>
                 ${detailsHtml}
             </div>`;
         });
@@ -248,10 +268,6 @@
             });
         } 
     }
-    
-    // Auto-start timer on test start
-    window.startTimer = startTimer; 
-</script>
 </script>
 </body>
 </html>
