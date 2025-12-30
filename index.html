@@ -1,569 +1,248 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta charset="UTF-8">
-    <title>Practice Portal</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>IGNITE Portal V3.0</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600&display=swap" rel="stylesheet">
     <style>
-	@media (max-width: 600px) {
-    	.container { margin: 10px; padding: 15px; width: auto; }
-    	.btn { width: 100%; margin: 5px 0; padding: 15px; font-size: 1.1em; } /* Larger touch targets */
-    	.nav-grid { justify-content: flex-start; }
-    	.btn-nav { width: 40px; height: 40px; } /* Easier to tap */
-    	.timer { float: none; text-align: center; display: block; margin-bottom: 10px; }
-	}
-        body { font-family: 'Segoe UI', sans-serif; background-color: #f4f7f6; margin: 0; }
-        .container { max-width: 900px; margin: 30px auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; margin: 0; padding: 0; }
+        .container { max-width: 900px; margin: 20px auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .hidden { display: none; }
-        .btn { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; margin: 5px; }
+        .btn { padding: 12px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: 0.3s; }
         .btn-primary { background: #3498db; color: white; }
-        .btn-flag { background: #f1c40f; color: #2c3e50; }
-        .btn-nav { background: #ecf0f1; border: 1px solid #bdc3c7; width: 35px; height: 35px; margin: 2px; font-size: 0.8em; }
-        .active-nav { border: 2px solid #2c3e50; font-weight: bold; }
+        .btn-nav { background: #ecf0f1; border: 1px solid #bdc3c7; width: 42px; height: 42px; margin: 3px; border-radius: 5px; }
+        .active-nav { border: 2px solid #2c3e50; background: #d5d8dc; }
         .answered-nav { background: #3498db !important; color: white; }
-        .flagged-nav { background: #f1c40f !important; border-color: #f39c12; }
-        .timer { font-size: 1.5em; font-weight: bold; color: #e74c3c; float: right; }
-        .nav-grid { margin-bottom: 20px; display: flex; flex-wrap: wrap; justify-content: center; }
-        .passage-box { background: #f9f9f9; border-left: 5px solid #3498db; padding: 15px; margin-bottom: 20px; font-style: italic; max-height: 250px; overflow-y: auto; }
-        .question-box { border: 1px solid #ddd; padding: 20px; border-radius: 8px; }
-        .option { display: block; margin: 10px 0; padding: 12px; border: 1px solid #eee; border-radius: 4px; cursor: pointer; }
+        .flagged-nav { background: #f1c40f !important; }
+        .timer { font-size: 1.8em; font-weight: bold; color: #e74c3c; text-align: right; }
+        .nav-grid { display: flex; flex-wrap: wrap; justify-content: center; margin-bottom: 20px; }
+        .question-box { border: 1px solid #eee; padding: 20px; border-radius: 10px; background: #fff; }
+        .option { display: block; padding: 15px; margin: 10px 0; border: 1px solid #eee; border-radius: 8px; cursor: pointer; }
         .option:hover { background: #f0f7fd; }
-        .admin-q-item { border-bottom: 1px solid #ddd; padding: 10px; margin-bottom: 10px; }
+        .passage-box { background: #f9f9f9; border-left: 5px solid #3498db; padding: 15px; margin-bottom: 15px; font-style: italic; }
+        @media (max-width: 600px) { .container { margin: 10px; } .btn { width: 100%; margin: 5px 0; } }
     </style>
 </head>
 <body>
 
-<div class="container" id="main-menu">
-    <h1>Student Portal</h1>
-    <p style="text-align:center;">Practice Mode: 30 Questions | 30 Minutes</p>
-    <div style="text-align: center;">
-        <button class="btn btn-primary" onclick="prepareTest('Maths')">Maths</button>
-        <button class="btn btn-primary" onclick="prepareTest('English')">English</button>
-        <button class="btn btn-primary" onclick="prepareTest('General')">General Ability</button>
-    </div>
-    <hr>
-    <button class="btn" style="background:#95a5a6; width:100%;" onclick="showAdmin()">Admin Access</button>
-</div>
-
-<div class="container hidden" id="admin-panel">
-    <h2>Admin Dashboard - Question Bank</h2>
-    <div id="bank-display" style="max-height: 500px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-bottom: 20px;"></div>
-    <button class="btn btn-primary" onclick="location.reload()">Exit Admin Mode</button>
-</div>
-
-<div class="container hidden" id="test-screen">
-    <div class="timer" id="timer">30:00</div>
-    <h2 id="subject-title">Test</h2>
-    <div class="nav-grid" id="nav-grid"></div>
-    <div id="passage-container" class="passage-box hidden"></div>
-    <div id="question-container"></div>
-
-    <div style="display: flex; justify-content: space-between; margin-top:20px;">
-        <div>
-            <button class="btn" style="background:#bdc3c7;" onclick="prevQuestion()">Previous</button>
-        <button class="btn btn-flag" onclick="toggleFlag()">Flag Question</button>    
-	
+<div id="app" class="container">
+    <div id="main-menu">
+        <h1 style="text-align:center;">IGNITE Online Portal</h1>
+        <div style="display:grid; gap:10px;">
+            <button class="btn btn-primary" onclick="startTest('Maths')">Start Maths Test</button>
+            <button class="btn btn-primary" onclick="startTest('English')">Start English Test</button>
+            <button class="btn btn-primary" onclick="startTest('General')">Start General Ability</button>
         </div>
-        <button class="btn" style="background:#bdc3c7;" onclick="nextQuestion()">Next</button>
-        <button class="btn" id="submit-btn" style="background:#27ae60; color:white; display:none;" onclick="submitTest()">Final Submit</button>
+        <hr style="margin:20px 0;">
+        <button class="btn" style="background:#95a5a6; color:white; width:100%;" onclick="showAdmin()">Admin Login</button>
+    </div>
+
+    <div id="admin-panel" class="hidden">
+        <h2>Admin Dashboard</h2>
+        <button class="btn btn-primary" onclick="showSection('results')">View Results</button>
+        <button class="btn btn-primary" onclick="showSection('upload')">Bulk Upload Questions</button>
+        <button class="btn" onclick="location.reload()">Back to Menu</button>
+        
+        <div id="admin-content" style="margin-top:20px;">
+            <div id="upload-area" class="hidden">
+                <p>Paste JSON Question Bank here:</p>
+                <textarea id="json-input" style="width:100%; height:200px; font-family:monospace;"></textarea><br>
+                <select id="upload-subject" class="btn">
+                    <option value="Maths">Maths</option>
+                    <option value="English">English</option>
+                    <option value="General">General Ability</option>
+                </select>
+                <button class="btn btn-primary" onclick="processUpload()">Save to Database</button>
+            </div>
+            <div id="results-area" class="hidden">
+                <button class="btn" style="background:#e74c3c; color:white;" onclick="resetResults()">Reset All Data</button>
+                <div id="results-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="test-screen" class="hidden">
+        <div class="timer" id="timer">30:00</div>
+        <div class="nav-grid" id="nav-grid"></div>
+        <div id="passage-container" class="passage-box hidden"></div>
+        <div id="question-area"></div>
+        <div style="display:flex; justify-content: space-between; margin-top:20px; flex-wrap:wrap;">
+            <button class="btn" style="background:#bdc3c7;" onclick="prev()">Previous</button>
+            <button class="btn btn-flag" onclick="toggleFlag()">Flag</button>
+            <button class="btn" style="background:#bdc3c7;" onclick="next()">Next</button>
+        </div>
+        <button id="submit-btn" class="btn" style="background:#27ae60; color:white; width:100%; margin-top:20px; display:none;" onclick="finishTest()">Final Submit</button>
     </div>
 </div>
 
 <script>
-    const questionBank = {
-        Maths: [
-	    { q: "A square has a side length of 6cm. If the side length is reduced by half, what is the remaining area of the original square?", options: ["14 cm²", "16 cm²", "24 cm²", "27 cm²"], a: "27 cm²" },
-            { q: "What is 1/6 of 2/3 equal to?", options: ["3/18", "4/9", "1/4", "1/9"], a: "1/9" },
-            { q: "How many hectares are there in a square kilometre?", options: ["1000", "10000", "10", "100"], a: "100" },
-            { q: "If X + Y = 15 and 2Y = 14, then what does 2X + Y equal to?", options: ["22", "24", "18", "23"], a: "23" },
-            { q: "Mrs Lee uses 3 1/4 kg of fish and 9 1/2 kg of rice each week. How many kilograms of fish and rice would she use in 4 weeks?", options: ["12 3/4 kg", "52 1/2 kg", "62 3/4 kg", "51 kg"], a: "51 kg" },
-            { q: "Grant spent $18 on a bat and a cricket ball. The bat cost twice as much as the ball. He then bought 4 more balls. How much did he spend on balls in total?", options: ["$30", "$20", "$90", "$60"], a: "30" },
-            { q: "If all cubes have a side length of 2 cm, what is the volume of a shape made of 11 cubes?", options: ["88 cm³", "80 cm³", "44 cm³", "11 cm³"], a: "88 cm³" },
-            { q: "In a pentagon, four internal angles are given. If three angles are part of an isosceles triangle with a top angle of 29°, what is the sum of angles a, b, and c?", options: ["a=21, b=103, c=16", "a=137, b=21, c=22", "a=42, b=69, c=69", "a=58, b=61, c=61"], a: "a=137, b=21, c=22" },
-            { q: "Looking at a wage graph: In Week 1 Darren earns $100, Week 2 $200, Week 3 $50. Which weeks did he receive the most and least respectively?", options: ["2, 3", "4, 1", "5, 3", "3, 5"], a: "5, 3" },
-            { q: "A shape is dipped in green paint. How many of the cubes will have exactly 4 faces painted green?", options: ["4", "3", "2", "5"], a: "2" },
-            { q: "If 3, 4, and 9 are to 108, then 4, 6, and ? are to 72.", options: ["5", "3", "2", "4"], a: "3" },
-            { q: "If 21 gob equals 8 vil, and 3 vil equals 7 yat, how many gob equals 16 yat?", options: ["7", "13", "18", "22"], a: "18" },
-            { q: "A car travels 60km in 45 minutes. What is its speed in km/h?", options: ["80 km/h", "75 km/h", "90 km/h", "100 km/h"], a: "80 km/h" },
-            { q: "What is the sum of the internal angles of a hexagon?", options: ["360°", "540°", "720°", "900°"], a: "720°" },
-            { q: "Simplify the ratio 1.5 : 2.5", options: ["1:2", "3:5", "2:3", "5:3"], a: "3:5" },
-            { q: "A shirt costs $45 after a 10% discount. What was the original price?", options: ["$50", "$49.50", "$55", "$60"], a: "$50" },
-            { q: "Which is larger: 5/8 or 0.6?", options: ["5/8", "0.6", "They are equal", "Cannot tell"], a: "5/8" },
-            { q: "Solve: 15% of 240", options: ["30", "36", "40", "24"], a: "36" },
-            { q: "How many edges does a triangular prism have?", options: ["6", "9", "12", "5"], a: "9" },
-            { q: "A tank is 1/4 full. Adding 15 liters makes it 1/2 full. What is the capacity?", options: ["30L", "45L", "60L", "75L"], a: "60L" },
-            { q: "What is the square root of 225?", options: ["13", "15", "17", "25"], a: "15" },
-            { q: "If a=5 and b=3, what is 2a² - b?", options: ["17", "47", "22", "97"], a: "47" },
-            { q: "What is the probability of rolling a prime number on a standard die?", options: ["1/2", "1/3", "2/3", "1/6"], a: "1/2" },
-            { q: "A rectangle has area 48cm² and width 6cm. What is the perimeter?", options: ["14cm", "28cm", "24cm", "32cm"], a: "28cm" },
-            { q: "Convert 0.375 to a fraction in simplest form.", options: ["3/8", "37/100", "1/3", "3/4"], a: "3/8" },
-            { q: "If 5 apples cost $2.25, how much do 12 apples cost?", options: ["$4.50", "$5.40", "$6.00", "$5.25"], a: "$5.40" },
-            { q: "What is the value of 11³?", options: ["121", "1331", "1111", "1441"], a: "1331" },
-            { q: "Subtract 2 2/3 from 5 1/6.", options: ["2 1/2", "3 1/3", "2 5/6", "3 5/6"], a: "2 1/2" },
-            { q: "A clock shows 3:15. What is the angle between the hands?", options: ["0°", "7.5°", "15°", "22.5°"], a: "7.5°" },
-            { q: "Find the median of: 12, 5, 8, 15, 10", options: ["8", "10", "12", "15"], a: "10" },
-            { q: "If a map scale is 1:50,000, how many km is 4cm on the map?", options: ["2km", "20km", "0.2km", "200km"], a: "2km" },
-            { q: "The average of 4 numbers is 10. If three numbers are 8, 12, and 14, what is the fourth?", options: ["6", "10", "4", "16"], a: "6" },
-            { q: "What is 200% of 0.5?", options: ["1", "10", "0.1", "2"], a: "1" },
-            { q: "A rectangular tank measures 50cm by 20cm by 10cm. How many litres of water can it hold?", options: ["10L", "100L", "1L", "5L"], a: "10L" },
-            { q: "If the pattern is 2, 6, 12, 20, ..., what is the 6th number in the sequence?", options: ["30", "42", "56", "36"], a: "42" },
-            { q: "A cyclist travels at 15 km/h. How many minutes does it take to travel 5 km?", options: ["20", "30", "15", "45"], a: "20" },
-            { q: "What is the value of 0.04 × 0.2?", options: ["0.8", "0.08", "0.008", "0.0008"], a: "0.008" },
-            { q: "If 4x - 7 = 21, what is the value of x?", options: ["5", "6", "7", "8"], a: "7" },
-            { q: "A bag contains 3 red, 4 blue, and 5 green marbles. What is the probability of picking a blue marble?", options: ["1/3", "1/4", "4/12", "1/2"], a: "1/3" },
-            { q: "What is the interior angle of a regular octagon?", options: ["108°", "120°", "135°", "144°"], a: "135°" },
-            { q: "Find 2/5 of 150.", options: ["30", "60", "75", "45"], a: "60" },
-            { q: "How many vertices does a hexagonal pyramid have?", options: ["6", "7", "8", "12"], a: "7" },
-            { q: "If a=3 and b=4, find the value of √(a² + b²).", options: ["5", "7", "12", "25"], a: "5" },
-            { q: "A shop increases prices by 20%. If a book was $15, what is the new price?", options: ["$17", "$18", "$20", "$30"], a: "$18" },
-            { q: "Express 45 minutes as a fraction of 2 hours in simplest form.", options: ["3/8", "1/4", "3/4", "2/3"], a: "3/8" },
-            { q: "What is the area of a triangle with base 12cm and height 7cm?", options: ["84 cm²", "42 cm²", "19 cm²", "38 cm²"], a: "42 cm²" },
-            { q: "If 8 pipes can fill a tank in 20 minutes, how long would 5 pipes take?", options: ["12.5 mins", "32 mins", "25 mins", "40 mins"], a: "32 mins" },
-            { q: "What is the next prime number after 31?", options: ["33", "35", "37", "39"], a: "37" },
-            { q: "Convert 4.5% to a decimal.", options: ["0.45", "0.045", "4.5", "0.0045"], a: "0.045" },
-            { q: "A map has a scale of 1cm : 5km. What is the actual distance for 7.2cm?", options: ["35km", "36km", "37.2km", "40km"], a: "36km" },
-            { q: "Solve: 2/3 + 1/4 - 1/2", options: ["5/12", "7/12", "1/4", "1/3"], a: "5/12" },
-            { q: "If a car uses 8 litres of fuel per 100km, how much fuel is needed for 350km?", options: ["24L", "28L", "32L", "35L"], a: "28L" },
-            { q: "What is the surface area of a cube with side length 3cm?", options: ["9 cm²", "27 cm²", "54 cm²", "36 cm²"], a: "54 cm²" },
-            { q: "How many seconds are in 2.5 hours?", options: ["150", "900", "9000", "7200"], a: "9000" },
-            { q: "If x/3 + 5 = 11, find x.", options: ["18", "2", "48", "6"], a: "18" },
-            { q: "Find the missing number: 1, 4, 9, 16, ?, 36", options: ["20", "25", "30", "24"], a: "25" },
-            { q: "A circle has a diameter of 14cm. Using π=22/7, find the circumference.", options: ["44cm", "88cm", "154cm", "22cm"], a: "44cm" },
-            { q: "What is the sum of the first 5 odd numbers?", options: ["15", "20", "25", "30"], a: "25" },
-            { q: "A toy is sold for $12 at a 20% loss. What was the cost price?", options: ["$15", "$14.40", "$16", "$18"], a: "$15" },
-            { q: "How many degrees does the minute hand of a clock turn in 20 minutes?", options: ["60°", "90°", "120°", "180°"], a: "120°" },
-            { q: "If 12 pens cost $9, how much do 4 pens cost?", options: ["$3", "$2.25", "$4.50", "$6"], a: "$3" },
-            { q: "What is 0.8 divided by 0.02?", options: ["4", "40", "400", "0.4"], a: "40" },
-            { q: "The ratio of boys to girls is 3:2. If there are 30 students, how many are boys?", options: ["12", "15", "18", "20"], a: "18" },
-            { q: "What is the LCM of 6, 8, and 12?", options: ["12", "24", "48", "72"], a: "24" },
-            { q: "If a square has a perimeter of 32cm, what is its area?", options: ["16 cm²", "32 cm²", "64 cm²", "128 cm²"], a: "64 cm²" },
-            { q: "What is the value of 5 + 3 × (10 - 4)?", options: ["48", "23", "32", "14"], a: "23" },
-	           { q: "What is the HCF of 36 and 54?", options: ["6", "9", "12", "18"], a: "18" },
-	           { q: "A rectangular field is 100m long and 50m wide. What is the cost of fencing it at $5 per metre?", options: ["$750", "$1500", "$5000", "$3000"], a: "$1500" },	           
-	           { q: "What is the value of 2 to the power of 5?", options: ["10", "16", "32", "64"], a: "32" },
-	           { q: "If the area of a circle is 154 cm², what is its radius? (Use π=22/7)", options: ["7cm", "14cm", "21cm", "3.5cm"], a: "7cm" },
-	           { q: "Simplify: 4(x + 3) - 2(x - 1)", options: ["2x + 10", "2x + 14", "6x + 10", "2x + 11"], a: "2x + 14" },
-	           { q: "A train travels 240km in 3 hours 20 minutes. What is its average speed?", options: ["72 km/h", "80 km/h", "75 km/h", "60 km/h"], a: "72 km/h" },
-            { q: "What is the sum of 1.25, 0.5, and 3.75?", options: ["5.0", "5.5", "4.5", "6.0"], a: "5.5" },
-            { q: "If 15% of a number is 45, what is the number?", options: ["200", "300", "400", "150"], a: "300" },
-            { q: "How many faces does a triangular-based pyramid (tetrahedron) have?", options: ["3", "4", "5", "6"], a: "4" },
-            { q: "Find the value of (0.3)².", options: ["0.9", "0.09", "0.009", "0.6"], a: "0.09" },
-            { q: "A cube has a volume of 64 cm³. What is its total surface area?", options: ["16 cm²", "64 cm²", "96 cm²", "32 cm²"], a: "96 cm²" },
-            { q: "What is the supplement of an angle of 75°?", options: ["15°", "25°", "105°", "115°"], a: "105°" },
-            { q: "If the ratio of angles in a triangle is 1:2:3, what is the largest angle?", options: ["60°", "90°", "120°", "100°"], a: "90°" },
-            { q: "Subtract 0.85 from 2.", options: ["1.15", "1.25", "1.05", "1.85"], a: "1.15" },
-            { q: "A car is bought for $10,000 and sold for $8,500. What is the percentage loss?", options: ["10%", "15%", "20%", "25%"], a: "15%" },
-            { q: "How many millimetres are in 1.2 metres?", options: ["120", "1200", "12000", "12"], a: "1200" },
-            { q: "What is the value of 1/2 + 1/3 + 1/6?", options: ["1", "5/6", "2/3", "11/6"], a: "1" },
-            { q: "Solve: 5x + 3 = 3x + 11", options: ["2", "4", "7", "8"], a: "4" },
-            { q: "What is the reciprocal of 2 1/2?", options: ["2/5", "5/2", "1/2", "2/1"], a: "2/5" },
-            { q: "A map scale is 1:200,000. If two towns are 10km apart, how far apart are they on the map?", options: ["5cm", "2cm", "50cm", "20cm"], a: "5cm" },
-            { q: "Which number is a factor of all even numbers?", options: ["1", "2", "4", "0"], a: "2" },
-            { q: "Find the mean of 4, 7, 9, 11, 14.", options: ["9", "10", "11", "45"], a: "9" },
-            { q: "How many degrees are in 3/4 of a full turn?", options: ["90°", "180°", "270°", "300°"], a: "270°" },
-            { q: "If 3n - 4 = 11, what is 2n + 5?", options: ["10", "15", "5", "11"], a: "15" },
-            { q: "What is the smallest number that 4, 6, and 10 all divide into?", options: ["20", "40", "60", "120"], a: "60" },
-            { q: "A rectangle has a length of 15cm and a diagonal of 17cm. Find its width.", options: ["8cm", "10cm", "12cm", "2cm"], a: "8cm" },
-            { q: "Convert 7/20 to a percentage.", options: ["7%", "35%", "14%", "70%"], a: "35%" },
-            { q: "What is the value of 100 - 4² × 5?", options: ["480", "80", "20", "420"], a: "20" },
-            { q: "If a = -2 and b = 5, find the value of ab - a.", options: ["-12", "-8", "12", "8"], a: "-8" },
-            { q: "How many vertices does a cube have?", options: ["6", "8", "12", "4"], a: "8" },
-            { q: "A shop sells 3 apples for $2. How many can you buy with $10?", options: ["12", "15", "18", "30"], a: "15" },
-            { q: "What is the angle between the hands of a clock at 6:00?", options: ["90°", "180°", "270°", "0°"], a: "180°" },
-            { q: "Simplify: (2x³)²", options: ["4x⁵", "4x⁶", "2x⁶", "4x⁹"], a: "4x⁶" },
-            { q: "What is 0.125 as a percentage?", options: ["1.25%", "12.5%", "0.125%", "125%"], a: "12.5%" }
-                   // ... more to be added here
-
-        ],
-        English: [
-
-    { 
-        passage: "Cathy's memories of her early childhood were ones of having a lot of fun running around and playing with her brothers and sisters and her friends. From an early age she realised that she not only loved to run, but that she was good at it. Cathy is probably best known as a champion athlete. She won her first gold medal at a school athletics championship when she was eight years old. In 2000, her image was beamed into millions of homes around the world when she became the first competing athlete to be invited to light the Olympic flame at the opening ceremony of the Sydney Olympic Games.",
-        q: "Based on the passage, when did Cathy win her first gold medal?", 
-        options: ["At the 2000 Sydney Olympics", "When she was eight years old", "When she retired in 2003", "At a primary school competition"], 
-        a: "When she was eight years old" 
-    },
-    { 
-        passage: "Cathy's memories of her early childhood were ones of having a lot of fun running around and playing with her brothers and sisters and her friends. From an early age she realised that she not only loved to run, but that she was good at it. Cathy is probably best known as a champion athlete. She won her first gold medal at a school athletics championship when she was eight years old. In 2000, her image was beamed into millions of homes around the world when she became the first competing athlete to be invited to light the Olympic flame at the opening ceremony of the Sydney Olympic Games.",
-        q: "What does the phrase 'beamed into millions of homes' suggest?", 
-        options: ["The ceremony was held indoors", "The event was broadcast on television", "Millions of people attended the stadium", "Cathy visited many people's houses"], 
-        a: "The event was broadcast on television" 
-    },
-    { 
-        passage: "Billycan bun is a great alternative to Christmas pudding. Ingredients: 150g plain flour, 1/2 tsp bicarbonate of soda, 1/2 tsp mixed spice, 1/4 tsp ground cinnamon, 120g sultanas, 110g caster sugar, 500mL hot black tea. Combine ingredients in a bowl. Pour into a greased and floured 1.5L billycan or pudding basin. Cover with lid and set for 6 hours or until thickened.",
-        q: "What else can you use if you do not have a billycan?", 
-        options: ["A frying pan", "A pudding basin", "A measuring cylinder", "A cake tray"], 
-        a: "A pudding basin" 
-    },
-    { 
-        passage: "Billycan bun is a great alternative to Christmas pudding. Ingredients: 150g plain flour, 1/2 tsp bicarbonate of soda, 1/2 tsp mixed spice, 1/4 tsp ground cinnamon, 120g sultanas, 110g caster sugar, 500mL hot black tea. Combine ingredients in a bowl. Pour into a greased and floured 1.5L billycan or pudding basin. Cover with lid and set for 6 hours or until thickened.",
-        q: "Which of these is NOT an irregular verb used in the instructions?", 
-        options: ["draw", "bring", "stand", "place"], 
-        a: "place" 
-    },
-    { q: "Which of the following is most OPPOSITE in meaning to the word PLACID?", options: ["Serene", "Noisy", "Odious", "Amid"], a: "Noisy" },
-    { q: "What word best fits the phrase: 'Cheerful and friendly'?", options: ["Jovial", "Trivial", "Applicable", "Insolent"], a: "Jovial" },
-    { q: "Find the 4-letter word hidden between two words: 'The lush forest near the village contained a dark secret.'", options: ["wicked", "near", "east", "lush"], a: "east" },
-    { q: "SACRED is to HOLY as IMMORAL is to...", options: ["Storied", "Amazed", "Tempted", "Corrupt"], a: "Corrupt" },
-    { q: "Which of these sentences is punctuated INCORRECTLY?", options: ["'I have fulfilled my dreams!' exclaimed Cathy.", "Bruce Barber was Cathys coach.", "In the Sydney Olympic Games, Cathy was a star.", "From an early age, Cathy loved to run."], a: "Bruce Barber was Cathys coach." },
-    { q: "What does the word PRUDENCE mean?", options: ["Cautiousness", "Generosity", "Folly", "Recklessness"], a: "Cautiousness" },
-    { q: "Choose the word that best fits: 'To speak with unusual pauses or repeated words.'", options: ["Repetitive", "Articulate", "Stammer", "Prudence"], a: "Stammer" },
-    { q: "Which sentence does NOT contain a proper noun?", options: ["Sydney is a large city.", "He ran very fast today.", "Bruce Barber coached the team.", "The Olympics are held every four years."], a: "He ran very fast today." },
-    { q: "What does the word ASTUTE mean?", options: ["Stunt", "Shrewd", "Timid", "Stubborn"], a: "Shrewd" },
-    { q: "Change the letters in CAUSES to make a new word meaning 'carefulness'.", options: ["Condiments", "Caution", "Stop", "Extraterrestrial"], a: "Caution" },
-    { q: "What does the word DIVULGE mean?", options: ["Devour", "Indulge", "Immerse", "Reveal"], a: "Reveal" },
-    { q: "What is the synonym of ECCENTRIC?", options: ["Ordinary", "Exotic", "Peculiar", "Aromatic"], a: "Peculiar" },
-    { q: "In the sentence 'The shadow flickered on George's upturned face', which word could replace 'upturned'?", options: ["Disturbed", "Unsettled", "Confused", "Raised"], a: "Raised" },
-    { q: "Identify the antonym of INSOLENT.", options: ["Devastating", "Polite", "Saddening", "Incompetent"], a: "Polite" },
-    { q: "Which word best fits the phrase: 'Fixed or not moving'?", options: ["Implore", "Immobile", "Amid", "Odious"], a: "Immobile" },
-    { q: "What does the word INQUIRE mean?", options: ["Demonstrate", "Portray", "Investigate", "Plead"], a: "Investigate" },
-    { q: "Complete the analogy: PRELUDE is to INTRODUCTION as TERMINATION is to...", options: ["Beginning", "Ending", "Middle", "Draft"], a: "Ending" },
-    { q: "Which of the following is a compound word?", options: ["Running", "Basketball", "Happiness", "Quickly"], a: "Basketball" },
-    { q: "Identify the misspelled word: 'The athlite ran with great speed.'", options: ["athlite", "speed", "great", "with"], a: "athlite" },
-    { q: "Which word is a verb?", options: ["Beautiful", "Quickly", "Generated", "Portal"], a: "Generated" },
-    { q: "Select the correct plural form: 'The ____ were grazing in the field.'", options: ["Sheeps", "Sheep", "Sheepses", "Shoop"], a: "Sheep" },
-    { q: "Which word means 'to move to a new place'?", options: ["Migrate", "Stagnate", "Rotate", "Vibrate"], a: "Migrate" },
-    { q: "Identify the preposition: 'The student sat on the chair.'", options: ["student", "sat", "on", "chair"], a: "on" },
-    { q: "What is the collective noun for a group of lions?", options: ["Pack", "Flock", "Pride", "Swarm"], a: "Pride" },
-    { q: "Which word is an adjective?", options: ["Run", "Blue", "Slowly", "Table"], a: "Blue" },
-    { q: "Find the hidden 4-letter word: 'The film stars are arriving.'", options: ["film", "star", "must", "mars"], a: "mars" },
-    { q: "Which sentence is in the past tense?", options: ["I am eating.", "I will eat.", "I ate.", "I eat."], a: "I ate." },
-    { q: "What is the prefix in the word UNHAPPY?", options: ["un", "happy", "y", "py"], a: "un" },
-    { q: "Which word is a synonym for LARGE?", options: ["Tiny", "Gigantic", "Small", "Narrow"], a: "Gigantic" },
-{ 
-        passage: "The Veldt: 'George, I wish you’d look at the nursery.' 'What’s wrong with it?' 'I don’t know.' 'Well, then.' 'I just want you to look at it, is all, or call a psychologist in to look at it.' 'What would a psychologist want with a nursery?' 'You know very well what he’d want.' She was filled with a peculiar sense of dread. 'It’s just that the nursery is different now than it was.' 'All right, let’s have a look.' They walked down the hall of their HappyLife Home.",
-        q: "How does Lydia feel about the nursery in this passage?", 
-        options: ["Excited", "Indifferent", "Uneasy", "Proud"], 
-        a: "Uneasy" 
-    },
-    { 
-        passage: "The Veldt: 'George, I wish you’d look at the nursery.' ... They walked down the hall of their HappyLife Home.",
-        q: "What does Lydia suggest George should do if he cannot find the problem himself?", 
-        options: ["Fix the roof", "Call a psychologist", "Sell the house", "Ask the children"], 
-        a: "Call a psychologist" 
-    },
-    { 
-        passage: "Phyllotaxis is the arrangement of leaves on a plant stem. The word comes from Ancient Greek 'phyllon' (leaf) and 'taxis' (arrangement). Basic phyllotactic structures include opposite (two leaves grow from the same point) and alternate (leaves grow at different points along the stem). Many plants follow the Fibonacci sequence in their leaf arrangement to ensure each leaf gets maximum sunlight.",
-        q: "According to the text, what is the primary purpose of leaf arrangement following the Fibonacci sequence?", 
-        options: ["To look beautiful", "To grow faster", "To maximize sunlight", "To store more water"], 
-        a: "To maximize sunlight" 
-    },
-    { q: "Which word is a synonym for 'FRUGAL'?", options: ["Thrifty", "Wasteful", "Wealthy", "Angry"], a: "Thrifty" },
-    { q: "What is the suffix in the word 'GOVERNMENT'?", options: ["gov", "ern", "ment", "over"], a: "ment" },
-    { q: "Which of these is a CONJUNCTION?", options: ["Slowly", "Because", "Elephant", "Under"], a: "Because" },
-    { q: "Select the correctly spelled word:", options: ["Accomodate", "Acommodate", "Accommodate", "Acomodate"], a: "Accommodate" },
-    { q: "Complete the analogy: BARK is to DOG as MEOW is to...", options: ["Bird", "Cat", "Snake", "Mouse"], a: "Cat" },
-    { q: "Find the hidden 4-letter word: 'The cold wind blew hard.'", options: ["cold", "wind", "blew", "dewl"], a: "dewl" },
-    { q: "What is the meaning of the idiom 'A piece of cake'?", options: ["Something delicious", "A difficult task", "Something very easy", "A birthday gift"], a: "Something very easy" },
-    { q: "Which word is an ADVERB?", options: ["Quick", "Quickly", "Quicker", "Quicken"], a: "Quickly" },
-    { q: "Identify the Pronoun in this sentence: 'She went to the park by herself.'", options: ["Park", "Went", "She", "The"], a: "She" },
-    { q: "What is the opposite of 'ARTIFICIAL'?", options: ["Fake", "Natural", "Solid", "Bright"], a: "Natural" },
-    { q: "Which sentence uses an apostrophe correctly for possession?", options: ["The boy's hat was red.", "The boys's hat was red.", "The boys hat's was red.", "The boys hat was red."], a: "The boy's hat was red." },
-    { q: "What does 'BENEVOLENT' mean?", options: ["Cruel", "Kind", "Strong", "Wealthy"], a: "Kind" },
-    { q: "Which word best fits: 'A person who writes books'?", options: ["Architect", "Author", "Anchor", "Artist"], a: "Author" },
-    { q: "Find the 4-letter word hidden between two words: 'The big rain fell.'", options: ["grain", "fell", "grin", "rain"], a: "grain" },
-    { q: "Complete the analogy: TEACHER is to SCHOOL as DOCTOR is to...", options: ["Office", "Hospital", "Store", "Factory"], a: "Hospital" },
-    { q: "Identify the Abstract Noun:", options: ["Table", "Happiness", "Teacher", "City"], a: "Happiness" },
-    { q: "Which word is the odd one out?", options: ["Brother", "Sister", "Cousin", "Neighbor"], a: "Neighbor" },
-    { q: "What does the prefix 'PRE-' mean?", options: ["After", "Before", "During", "Never"], a: "Before" },
-    { q: "Which sentence is written in the Future Tense?", options: ["I ran home.", "I am running home.", "I will run home.", "I run home."], a: "I will run home." },
-    { q: "What is the plural of 'MOUSE'?", options: ["Mouses", "Mice", "Meese", "Mices"], a: "Mice" },
-    { q: "Which word means 'to breathe out'?", options: ["Inhale", "Exhale", "Excite", "Exert"], a: "Exhale" },
-    { q: "Identify the Interjection:", options: ["Wow!", "Under", "Running", "Yellow"], a: "Wow!" },
-    { q: "What is a 'synonym'?", options: ["Opposite meaning", "Same meaning", "Rhyming word", "Short word"], a: "Same meaning" },
-    { q: "Which of these is a Proper Noun?", options: ["river", "mountain", "Australia", "ocean"], a: "Australia" },
-    { q: "Find the hidden word: 'Keep a sharp eye.'", options: ["keep", "sharp", "pear", "eye"], a: "pear" },
-    { q: "Which word is the antonym of 'OPTIMISTIC'?", options: ["Positive", "Pessimistic", "Cheerful", "Grateful"], a: "Pessimistic" },
-    { q: "What is the past participle of 'BREAK'?", options: ["Breaks", "Broke", "Broken", "Breaking"], a: "Broken" },
-    { q: "Which word refers to 'a place where bees are kept'?", options: ["Aviary", "Aquarium", "Apiary", "Stable"], a: "Apiary" },
-    { q: "Select the word that is correctly spelled:", options: ["Separate", "Seperate", "Sperate", "Seprate"], a: "Separate" },
-    { q: "What is the meaning of 'OBSTINATE'?", options: ["Helpful", "Stubborn", "Flexible", "Fragile"], a: "Stubborn" },
-    { q: "Which sentence is a question?", options: ["It is raining.", "Stop that now.", "Where is the cat?", "I like apples."], a: "Where is the cat?" },
-    { q: "Identify the Verb: 'The plane landed safely.'", options: ["Plane", "Landed", "Safely", "The"], a: "Landed" },
-    { q: "What is the opposite of 'VAGUE'?", options: ["Unclear", "Clear", "Dull", "Quiet"], a: "Clear" },
-    { q: "Which word is the odd one out?", options: ["Apple", "Banana", "Carrot", "Grape"], a: "Carrot" },
-    { q: "Find the hidden 4-letter word: 'She must earn more.'", options: ["earn", "star", "more", "must"], a: "earn" },
-    { q: "What is the meaning of 'AMBIGUOUS'?", options: ["Having two meanings", "Very clear", "Very large", "Extremely fast"], a: "Having two meanings" },
-    { q: "Which word is a synonym for 'COURAGEOUS'?", options: ["Timid", "Brave", "Scared", "Weak"], a: "Brave" },
-    { q: "Identify the Adjective: 'The old man walked slowly.'", options: ["Old", "Man", "Walked", "Slowly"], a: "Old" },
-    { q: "What is the plural of 'OASIS'?", options: ["Oasises", "Oases", "Oasi", "Oasiss"], a: "Oases" },
-    { q: "Which word means 'a person who travels in space'?", options: ["Pilot", "Astronaut", "Sailor", "Driver"], a: "Astronaut" },
-    { q: "Find the hidden word: 'Wait for the end.'", options: ["wait", "fore", "end", "the"], a: "fore" },
-    { q: "What is a 'Simile'?", options: ["A type of hat", "A comparison using like or as", "A direct comparison", "A word that sounds like its meaning"], a: "A comparison using like or as" },
-    { q: "Which word is an antonym for 'ANCIENT'?", options: ["Old", "Modern", "Classic", "Historic"], a: "Modern" },
-    { q: "Identify the Subject in: 'The hungry lion roared.'", options: ["Roared", "Hungry", "The hungry lion", "The"], a: "The hungry lion" },
-    { q: "What is the meaning of 'ELOQUENT'?", options: ["Fluent in speaking", "Very loud", "Silent", "Angry"], a: "Fluent in speaking" },
-    { q: "Which word is correctly spelled?", options: ["Necessary", "Necesary", "Neccesary", "Necasary"], a: "Necessary" },
-    { q: "Complete: PEN is to WRITE as KNIFE is to...", options: ["Eat", "Cut", "Sharp", "Kitchen"], a: "Cut" },
-    { q: "What does the suffix '-LESS' mean?", options: ["More", "Without", "Full of", "Like"], a: "Without" },
-    { q: "Identify the article in the sentence: 'An apple a day.'", options: ["An", "Apple", "Day", "None"], a: "An" },
-    { q: "Which word means 'to copy someone exactly'?", options: ["Imitate", "Innovate", "Initiate", "Insulate"], a: "Imitate" },
-    { q: "What is the opposite of 'GIGANTIC'?", options: ["Huge", "Tiny", "Large", "Wide"], a: "Tiny" },
-    { q: "Which word is a 'Noun'?", options: ["Beautifully", "Run", "Happiness", "Quick"], a: "Happiness" },
-    { q: "Identify the error: 'He dont like pizza.'", options: ["He", "dont", "like", "pizza"], a: "dont" },
-    { q: "What is the meaning of 'CANDID'?", options: ["Sweet", "Frank/Honest", "Hidden", "Plastic"], a: "Frank/Honest" },
-    { q: "Which word is a synonym for 'VALIANT'?", options: ["Cowardly", "Brave", "Noisy", "Small"], a: "Brave" },
-    { q: "Find the hidden word: 'This is the best top.'", options: ["this", "stop", "best", "the"], a: "stop" },
-    { q: "What is the past tense of 'FLY'?", options: ["Flyed", "Flew", "Flown", "Flying"], a: "Flew" },
-    { q: "Which word is an antonym for 'RANDOM'?", options: ["Accidental", "Deliberate", "Sudden", "Chaos"], a: "Deliberate" },
-    { q: "Identify the Conjunction: 'I wanted to go but it rained.'", options: ["wanted", "but", "go", "rained"], a: "but" },
-    { q: "What is a 'Metaphor'?", options: ["A comparison using like or as", "A direct comparison saying something IS another", "A rhyming scheme", "An action word"], a: "A direct comparison saying something IS another" },
-    { q: "Which word means 'occurring every year'?", options: ["Daily", "Weekly", "Monthly", "Annual"], a: "Annual" },
-    { q: "What is the opposite of 'GENEROUS'?", options: ["Kind", "Mean", "Selfish", "Both Mean and Selfish"], a: "Both Mean and Selfish" },
-    { q: "Identify the Adverb: 'She sang beautifully.'", options: ["She", "Sang", "Beautifully", "Beautiful"], a: "Beautifully" },
-    { q: "Which word is correctly spelled?", options: ["Believe", "Beleive", "Belive", "Beleeve"], a: "Believe" }
-
-	],
-        General: [
-    { q: "If RANSOM is coded as 18114191513, what is the code for SMART?", options: ["191311820", "181211719", "201421921", "191311719"], a: "191311820" },
-    { q: "PUDDLE is to 61, DIMPLE is to 45, and SLUMPS is to 82. Using the same rule, what is the value of PUDDLE + DIMPLE?", options: ["100", "106", "110", "115"], a: "106" },
-    { q: "In a certain code, 3, 4, and 9 result in 108. If 4, 6, and a mystery number result in 72, what is the mystery number?", options: ["2", "3", "4", "5"], a: "3" },
-    { q: "Find the odd one out in this group of words:", options: ["Compass", "Protractor", "Ruler", "Pen"], a: "Pen" },
-    { q: "If all Bloops are Razis and all Razis are Lurgs, then all Bloops must be Lurgs. Is this statement:", options: ["True", "False", "Sometimes True", "Cannot tell"], a: "True" },
-    { q: "Which number comes next in the sequence: 2, 6, 12, 20, 30, ...?", options: ["36", "40", "42", "44"], a: "42" },
-    { q: "Rearrange the letters 'E-L-H-P-A-N-T' to find a type of:", options: ["Fruit", "Animal", "City", "Country"], a: "Animal" },
-    { q: "If a clock is rotated 90 degrees clockwise, and the original time was 3:00, where is the hour hand pointing now?", options: ["6:00", "9:00", "12:00", "3:00"], a: "6:00" },
-    { q: "A, B, C, and D are sitting in a row. A is to the left of B. C is to the right of B. D is between B and C. Who is on the far left?", options: ["A", "B", "C", "D"], a: "A" },
-    { q: "Which word does NOT belong with the others?", options: ["Vulture", "Eagle", "Penguin", "Falcon"], a: "Penguin" },
-    { q: "If 5 workers can build a wall in 4 hours, how many workers are needed to build it in 2 hours?", options: ["8", "10", "12", "15"], a: "10" },
-    { q: "Choose the word that best completes the analogy: MOUNTAIN is to HIGH as VALLEY is to...", options: ["Green", "Low", "River", "Wide"], a: "Low" },
-    { q: "Find the missing number: 81, 64, 49, ?, 25", options: ["30", "36", "40", "42"], a: "36" },
-    { q: "If today is Tuesday, what day was it 10 days ago?", options: ["Saturday", "Sunday", "Monday", "Friday"], a: "Saturday" },
-    { q: "Which of the following is the opposite of 'EXPAND'?", options: ["Grow", "Stretch", "Shrink", "Inflate"], a: "Shrink" },
-    { q: "If a square sheet of paper is folded in half twice and a small hole is punched in the center, how many holes will there be when it is unfolded?", options: ["1", "2", "4", "8"], a: "4" },
-    { q: "Find the word that can be joined to the end of 'FOOT' and the start of 'BALL':", options: ["Ball", "Step", "Print", "Note"], a: "Ball" },
-    { q: "If North becomes East and West becomes North, what does South become?", options: ["East", "West", "North", "South"], a: "West" },
-    { q: "Which number is the odd one out: 13, 17, 19, 21, 23?", options: ["13", "19", "21", "23"], a: "21" },
-    { q: "In a family, there are two fathers and two sons. What is the minimum number of people in the family?", options: ["2", "3", "4", "5"], a: "3" },
-    { q: "Complete the sequence: J, F, M, A, M, J, ...", options: ["A", "S", "O", "J"], a: "J" },
-    { q: "If 3 apples cost as much as 2 oranges, then 12 apples cost as much as how many oranges?", options: ["6", "8", "10", "12"], a: "8" },
-    { q: "Which word means the same as 'GIGANTIC'?", options: ["Tiny", "Huge", "Heavy", "Round"], a: "Huge" },
-    { q: "A man faces North. He turns 45 degrees right, then 90 degrees left. Which direction is he facing now?", options: ["North-East", "North-West", "West", "East"], a: "North-West" },
-    { q: "Find the hidden word in the sentence: 'The small boat sank.'", options: ["boat", "small", "sank", "also"], a: "also" },
-    { q: "If RED is 27, what is BLUE?", options: ["40", "42", "45", "50"], a: "40" },
-    { q: "Which letter is 3 places to the left of the letter 'M' in the alphabet?", options: ["J", "K", "L", "I"], a: "J" },
-    { q: "If X is taller than Y, and Y is taller than Z, who is the shortest?", options: ["X", "Y", "Z", "Cannot tell"], a: "Z" },
-    { q: "What is the next number: 1, 1, 2, 3, 5, 8, ...?", options: ["10", "12", "13", "15"], a: "13" },
-    { q: "Which word is the odd one out?", options: ["Mars", "Venus", "Earth", "Moon"], a: "Moon" },
-    { q: "If a doctor gives you 3 pills and tells you to take one every half hour, how long will they last?", options: ["30 mins", "60 mins", "90 mins", "120 mins"], a: "60 mins" },
-    { q: "Find the missing letter: B, E, H, K, ?", options: ["L", "M", "N", "O"], a: "N" },
-    { q: "What is the reflection of the word 'TOOT' in a mirror?", options: ["TOOT", "OTTO", "TOOT (backwards)", "T00T"], a: "TOOT" },
-
-    { q: "If the word 'CIRCLE' is coded as 'DKSFOF', what is the code for 'SQUARE'?", options: ["TRVBSF", "TRUBSF", "TRVCSF", "TRVASF"], a: "TRVBSF" },
-    { q: "Which number should replace the question mark? 3, 8, 15, 24, ? ", options: ["33", "34", "35", "36"], a: "35" },
-    { q: "Find the odd one out among these shapes described by their sides:", options: ["Triangle", "Square", "Pentagon", "Circle"], a: "Circle" },
-    { q: "A cube is painted blue on all sides and then cut into 27 smaller equal cubes. How many small cubes have exactly three sides painted blue?", options: ["4", "6", "8", "12"], a: "8" },
-    { q: "If 'Up' is 'Down', 'Left' is 'Right', and 'North' is 'South', what is the opposite of 'North-West'?", options: ["South-East", "North-East", "South-West", "North-West"], a: "North-West" },
-    { q: "Which word can be placed in front of 'TABLE', 'ROOM', and 'MATE' to form three new words?", options: ["Bed", "School", "Class", "Time"], a: "Time" },
-    { q: "If 4 cats can catch 4 mice in 4 minutes, how many minutes does it take 100 cats to catch 100 mice?", options: ["1", "4", "40", "100"], a: "4" },
-    { q: "Identify the missing number in this pattern: 2, 5, 11, 23, ?", options: ["45", "46", "47", "48"], a: "47" },
-    { q: "Rearrange 'O-R-A-G-N-E' and select its category:", options: ["Fruit", "Color", "Both Fruit and Color", "City"], a: "Both Fruit and Color" },
-    { q: "If all men are mortal and Socrates is a man, then Socrates is mortal. This logic is an example of:", options: ["Deduction", "Induction", "Abduction", "Reduction"], a: "Deduction" },
-    { q: "Which letter comes next: Z, X, V, T, R, ?", options: ["P", "Q", "O", "S"], a: "P" },
-    { q: "If a person is the 10th tallest in a class of 25 and also the 16th shortest, how many people are in the class?", options: ["24", "25", "26", "27"], a: "25" },
-    { q: "Which word best completes the relationship? BIRD is to FLY as FISH is to...", options: ["Water", "Swim", "Gill", "Scale"], a: "Swim" },
-    { q: "Find the value: If A=1, B=2, C=3... what is the sum of 'ACE'?", options: ["8", "9", "10", "11"], a: "9" },
-    { q: "A car travels 50 km South, then 50 km East, then 50 km North. How far is it from the starting point?", options: ["0 km", "50 km", "100 km", "150 km"], a: "50 km" },
-    { q: "Which of these numbers is a perfect square?", options: ["24", "48", "64", "72"], a: "64" },
-    { q: "Find the 4-letter word hidden between these two words: 'That item is on sale.'", options: ["item", "time", "sale", "that"], a: "time" },
-    { q: "If you flip a coin three times, what is the probability of getting three heads?", options: ["1/2", "1/4", "1/6", "1/8"], a: "1/8" },
-    { q: "Which month comes 3 months before August?", options: ["May", "June", "April", "July"], a: "May" },
-    { q: "If 7, 39, and 23 follow a specific rule, and 11, ?, and 19 follow the same rule, find the missing number.", options: ["25", "30", "40", "15"], a: "30" },
-    { q: "Identify the word that can be added to the end of 'SEA' and the start of 'SHELL':", options: ["Side", "Weed", "Shore", "Horse"], a: "Side" },
-    { q: "Which number is the largest?", options: ["0.09", "0.1", "0.088", "0.01"], a: "0.1" },
-    { q: "Complete the analogy: HAND is to GLOVE as FOOT is to...", options: ["Sock", "Toe", "Walk", "Leg"], a: "Sock" },
-    { q: "If a digital clock shows 12:21, the time is a palindrome. How many minutes later will the next palindrome time occur?", options: ["60", "70", "10", "110"], a: "70" },
-    { q: "Find the odd one out:", options: ["Mercury", "Gold", "Silver", "Iron"], a: "Mercury" },
-    { q: "If 1=5, 2=10, 3=15, 4=20, then 5=?", options: ["25", "30", "1", "5"], a: "1" },
-    { q: "Which shape comes next? Circle, Square, Circle, Square...", options: ["Triangle", "Hexagon", "Circle", "Pentagon"], a: "Circle" },
-    { q: "If you rearrange 'S-U-P-E-R', you get:", options: ["Purse", "Spure", "Pruses", "Users"], a: "Purse" },
-    { q: "What is the 5th letter of the alphabet when counted backwards?", options: ["U", "V", "W", "X"], a: "V" },
-    { q: "If John is older than Sarah, and Sarah is younger than Mike, who is the youngest?", options: ["John", "Sarah", "Mike", "Cannot tell"], a: "Sarah" },
-    { q: "Which number replaces the question mark? 1, 4, 9, 16, ?", options: ["20", "24", "25", "30"], a: "25" },
-    { q: "If 'GENTLE' is 'ELTNEG', what is 'STRONG'?", options: ["GNORTS", "GNORST", "GNORTZ", "GNORTSX"], a: "GNORTS" },
-    { q: "Find the word meaning 'to leave out':", options: ["Omit", "Emit", "Admit", "Submit"], a: "Omit" },
-    { q: "How many months have 28 days?", options: ["1", "6", "12", "Depends on the year"], a: "12" },
-
-    { q: "If a plane crashes on the border of the US and Canada, where do they bury the survivors?", options: ["US", "Canada", "Both", "You don't bury survivors"], a: "You don't bury survivors" },
-    { q: "Identify the missing number: 100, 90, 81, 73, ?", options: ["64", "65", "66", "67"], a: "66" },
-    { q: "Which word is most similar to 'RESILIENT'?", options: ["Fragile", "Tough", "Quiet", "Heavy"], a: "Tough" },
-    { q: "If 24 yat equals 7 gob, how many gob equals 48 yat?", options: ["12", "14", "21", "28"], a: "14" },
-    { q: "Complete the sequence: 1, 2, 4, 8, 16, ?", options: ["20", "24", "32", "64"], a: "32" },
-    { q: "Find the hidden word: 'The star rose slowly.'", options: ["star", "rose", "slow", "taro"], a: "taro" },
-    { q: "If you have 10 apples and you take away 2, how many apples do you have?", options: ["2", "8", "10", "12"], a: "2" },
-    { q: "Which word is the odd one out?", options: ["Kilometer", "Gram", "Meter", "Centimeter"], a: "Gram" },
-    { q: "If 'BLUE' is 4-12-21-5, what is 'RED'?", options: ["18-5-4", "17-4-3", "19-6-5", "18-4-5"], a: "18-5-4" },
-    { q: "A farmer has 17 sheep and all but 9 die. How many are left?", options: ["8", "9", "17", "0"], a: "9" },
-    { q: "Which direction is opposite to South-West?", options: ["North-West", "North-East", "South-East", "North"], a: "North-East" },
-    { q: "Find the missing letter: A, C, E, G, ?", options: ["H", "I", "J", "K"], a: "I" },
-    { q: "If a shirt takes 1 hour to dry in the sun, how long do 10 shirts take to dry?", options: ["1 hour", "10 hours", "5 hours", "100 minutes"], a: "1 hour" },
-    { q: "What is the next number in the sequence: 5, 10, 20, 40, ?", options: ["50", "60", "80", "100"], a: "80" },
-    { q: "Which word best completes: RAIN is to UMBRELLA as SUN is to...", options: ["Hat", "Summer", "Hot", "Yellow"], a: "Hat" },
-    { q: "If 'HOUSE' is 'ESUOH', what is 'CHAIR'?", options: ["RIAHC", "RIHAC", "RAIHC", "RIACH"], a: "RIAHC" },
-    { q: "Identify the odd number in the set: 2, 4, 6, 8, 9, 10", options: ["2", "6", "9", "10"], a: "9" },
-    { q: "A person's mother's only child is who?", options: ["Me", "My sister", "My brother", "My father"], a: "Me" },
-    { q: "If you move 3 steps forward and 2 steps back, how many steps are you from the start?", options: ["1", "3", "5", "0"], a: "1" },
-    { q: "Which word is correctly spelled?", options: ["Calendar", "Calender", "Calander", "Calindar"], a: "Calendar" },
-    { q: "Find the hidden word: 'The tall tree grew.'", options: ["tall", "tree", "grew", "allt"], a: "allt" },
-    { q: "What is the 3rd vowel in the alphabet?", options: ["A", "E", "I", "O"], a: "I" },
-    { q: "If 'A' is 1 and 'Z' is 26, what is 'CAT'?", options: ["20", "24", "26", "30"], a: "24" },
-    { q: "Which month has 31 days?", options: ["April", "June", "September", "August"], a: "August" },
-    { q: "If you rotate a 'P' 180 degrees, it looks like a:", options: ["b", "d", "q", "p"], a: "d" },
-    { q: "What is the next prime number after 7?", options: ["8", "9", "10", "11"], a: "11" },
-    { q: "Which word means 'a period of ten years'?", options: ["Century", "Decade", "Fortnight", "Millennium"], a: "Decade" },
-    { q: "If a person is facing East and turns 180 degrees, which way are they facing?", options: ["North", "South", "East", "West"], a: "West" },
-    { q: "Identify the word that can follow 'SUN' and precede 'SHINE':", options: ["Set", "Rise", "Light", "Day"], a: "Rise" },
-    { q: "If 'DOG' is 4-15-7, what is 'CAT'?", options: ["3-1-20", "3-2-21", "4-1-20", "2-1-19"], a: "3-1-20" },
-    { q: "Which number is exactly in the middle of 10 and 20?", options: ["14", "15", "16", "17"], a: "15" },
-    { q: "What is the next letter: B, D, F, H, ?", options: ["I", "J", "K", "L"], a: "J" },
-    { q: "If you have 3 coins that add up to 30 cents and one is not a nickel, what are the coins?", options: ["3 dimes", "2 dimes and a nickel", "Not possible", "Quarter and 5 cents"], a: "3 dimes" }
-
-]
+    // --- FIREBASE CONFIG ---
+    const firebaseConfig = {
+        apiKey: "AIzaSyDSva9HPKcOyiH-mGHIxx8GINOg9xKH7qI",
+        authDomain: "ignite-portal-e39db.firebaseapp.com",
+        databaseURL: "https://ignite-portal-e39db-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "ignite-portal-e39db",
+        storageBucket: "ignite-portal-e39db.firebasestorage.app",
+        messagingSenderId: "527432149090",
+        appId: "1:527432149090:web:d278c44c324a4f7e68c93b"
     };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-    let currentSubject = "";
+    let testId = "";
     let testQuestions = [];
+    let currentIndex = 0;
     let userAnswers = {};
     let flagged = new Set();
-    let currentIndex = 0;
-    let timerInterval;
+    let startTime = 0;
+    let questionStartTime = 0;
+    let timerInt;
 
+    // --- ADMIN LOGIC ---
     function showAdmin() {
-        let p = prompt("Enter Admin Password:");
-        if(p === "Admin 123") {
+        if(prompt("Password:") === "Admin 123") {
             document.getElementById('main-menu').classList.add('hidden');
             document.getElementById('admin-panel').classList.remove('hidden');
-            displayFullBank();
-        } else if (p !== null) { alert("Access Denied."); }
-    }
-
-    function displayFullBank() {
-        let html = "";
-        for(let sub in questionBank) {
-            html += `<div style="background:#3498db; color:white; padding:10px; margin-top:10px;"><strong>${sub}</strong> - ${questionBank[sub].length} Questions</div>`;
-            questionBank[sub].forEach((q, i) => {
-                html += `<div class="admin-q-item">
-                    <strong>${i+1}. ${q.q}</strong><br>
-                    <small>Options: ${q.options.join(" | ")}</small><br>
-                    <span style="color:green">Correct: ${q.a}</span>
-                </div>`;
-            });
         }
-        document.getElementById('bank-display').innerHTML = html || "No questions loaded.";
     }
 
-    function prepareTest(subject) {
-        currentSubject = subject;
-        let pool = [...questionBank[subject]];
-        if(pool.length < 30) { alert("Not enough questions in this bank yet!"); return; }
+    function showSection(sec) {
+        document.getElementById('upload-area').classList.toggle('hidden', sec !== 'upload');
+        document.getElementById('results-area').classList.toggle('hidden', sec !== 'results');
+        if(sec === 'results') loadResults();
+    }
+
+    function processUpload() {
+        const sub = document.getElementById('upload-subject').value;
+        try {
+            const data = JSON.parse(document.getElementById('json-input').value);
+            db.ref('bank/' + sub).set(data).then(() => alert("Upload Successful!"));
+        } catch(e) { alert("Invalid JSON format. Check your brackets!"); }
+    }
+
+    // --- TEST LOGIC ---
+    async function startTest(subject) {
+        const snapshot = await db.ref('bank/' + subject).get();
+        if(!snapshot.exists()) return alert("No questions in database. Upload them first!");
         
-        testQuestions = pool.sort(() => 0.5 - Math.random()).slice(0, 30);
-        userAnswers = {}; flagged = new Set(); currentIndex = 0;
+        const allQuestions = snapshot.val();
+        testQuestions = allQuestions.sort(() => 0.5 - Math.random()).slice(0, 30);
         
+        // Setup Test Session in DB
+        const now = new Date();
+        testId = subject + "_" + now.getTime();
+        startTime = now.getTime();
+        
+        db.ref('results/' + testId).set({
+            subject, 
+            status: "In Progress", 
+            startTime: now.toLocaleString()
+        });
+
         document.getElementById('main-menu').classList.add('hidden');
         document.getElementById('test-screen').classList.remove('hidden');
-        document.getElementById('subject-title').innerText = subject + " Test";
         
-        renderNavGrid();
+        questionStartTime = Date.now();
+        renderNav();
         startTimer(30 * 60);
-        showQuestion();
+        showQ();
     }
 
-    function renderNavGrid() {
-        const grid = document.getElementById('nav-grid');
-        grid.innerHTML = "";
-        for(let i = 0; i < 30; i++) {
-            let status = "";
-            if (userAnswers[i]) status = "answered-nav";
-            if (flagged.has(i)) status = "flagged-nav";
-            grid.innerHTML += `<button class="btn-nav ${status} ${i===currentIndex?'active-nav':''}" onclick="jumpTo(${i})">${i+1}</button>`;
-        }
-    }
-
-    function showQuestion() {
-        const data = testQuestions[currentIndex];
+    function showQ() {
+        const q = testQuestions[currentIndex];
         const passageBox = document.getElementById('passage-container');
-        if(data.passage) {
-            passageBox.innerHTML = `<strong>Reading Passage:</strong><br>${data.passage}`;
+        if(q.passage) {
+            passageBox.innerHTML = q.passage;
             passageBox.classList.remove('hidden');
         } else { passageBox.classList.add('hidden'); }
 
-        let html = `<div class="question-box"><h3>Question ${currentIndex + 1}</h3><p>${data.q}</p>`;
-        data.options.forEach(opt => {
-            const checked = userAnswers[currentIndex] === opt ? "checked" : "";
-            html += `<label class="option"><input type="radio" name="opt" value="${opt}" ${checked} onchange="saveAnswer('${opt}')"> ${opt}</label>`;
+        let html = `<div class="question-box"><h3>Question ${currentIndex+1}</h3><p>${q.q}</p>`;
+        q.options.forEach(opt => {
+            const chk = userAnswers[currentIndex] === opt ? "checked" : "";
+            html += `<label class="option"><input type="radio" name="o" value="${opt}" ${chk} onchange="save('${opt}')"> ${opt}</label>`;
         });
-        document.getElementById('question-container').innerHTML = html + `</div>`;
-        document.getElementById('submit-btn').style.display = (currentIndex === 29) ? "block" : "none";
-        renderNavGrid();
+        document.getElementById('question-area').innerHTML = html + `</div>`;
+        document.getElementById('submit-btn').style.display = (currentIndex === 29) ? 'block' : 'none';
+        renderNav();
     }
 
-    function saveAnswer(val) { userAnswers[currentIndex] = val; renderNavGrid(); }
-    function toggleFlag() { flagged.has(currentIndex) ? flagged.delete(currentIndex) : flagged.add(currentIndex); renderNavGrid(); }
-    function jumpTo(index) { currentIndex = index; showQuestion(); }
-    function nextQuestion() { if(currentIndex < 29) jumpTo(currentIndex + 1); }
-    function prevQuestion() { if(currentIndex > 0) jumpTo(currentIndex - 1); }
+    function save(val) {
+        const timeSpent = Math.floor((Date.now() - questionStartTime) / 1000);
+        userAnswers[currentIndex] = val;
+        
+        // HEARTBEAT: Save to Firebase immediately
+        db.ref('results/' + testId + '/responses/' + currentIndex).set({
+            ans: val,
+            time: timeSpent,
+            isCorrect: (val === testQuestions[currentIndex].a)
+        });
+        renderNav();
+    }
+
+    function renderNav() {
+        const grid = document.getElementById('nav-grid');
+        grid.innerHTML = "";
+        for(let i=0; i<30; i++) {
+            let cls = i === currentIndex ? "active-nav " : "";
+            if(userAnswers[i]) cls += "answered-nav ";
+            if(flagged.has(i)) cls += "flagged-nav ";
+            grid.innerHTML += `<button class="btn-nav ${cls}" onclick="jump(${i})">${i+1}</button>`;
+        }
+    }
+
+    function jump(i) {
+        // Record time for previous question before jumping
+        save(userAnswers[currentIndex] || "Skipped");
+        currentIndex = i;
+        questionStartTime = Date.now();
+        showQ();
+    }
+
+    function next() { if(currentIndex < 29) jump(currentIndex + 1); }
+    function prev() { if(currentIndex > 0) jump(currentIndex - 1); }
+    function toggleFlag() { flagged.has(currentIndex) ? flagged.delete(currentIndex) : flagged.add(currentIndex); renderNav(); }
 
     function startTimer(sec) {
-        clearInterval(timerInterval);
-        timerInterval = setInterval(() => {
+        timerInt = setInterval(() => {
             let m = Math.floor(sec/60), s = sec%60;
-            document.getElementById('timer').textContent = `${m}:${s<10?'0':''}${s}`;
-            if(sec-- <= 0) submitTest();
+            document.getElementById('timer').innerText = `${m}:${s<10?'0':''}${s}`;
+            if(sec-- <= 0) finishTest();
         }, 1000);
     }
 
-    function submitTest() {
-        clearInterval(timerInterval);
-        let score = 0, trans = [];
-        testQuestions.forEach((q, i) => {
-            if(userAnswers[i] === q.a) score++;
-            else trans.push({q: q.q, user: userAnswers[i]||"Skipped", correct: q.a});
+    async function finishTest() {
+        clearInterval(timerInt);
+        let score = 0;
+        testQuestions.forEach((q, i) => { if(userAnswers[i] === q.a) score++; });
+        
+        await db.ref('results/' + testId).update({
+            status: "Completed",
+            finalScore: score,
+            totalTime: Math.floor((Date.now() - startTime) / 1000)
         });
-        generatePDF(score, trans);
+        alert("Test Submitted! Score: " + score + "/30");
         location.reload();
     }
 
-    function generatePDF(score, trans) {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
+    async function loadResults() {
+        const snap = await db.ref('results').get();
+        const list = document.getElementById('results-list');
+        list.innerHTML = "";
+        if(!snap.exists()) return list.innerHTML = "No results yet.";
         
-        // --- Create Timestamp ---
-        const now = new Date();
-        const dd = String(now.getDate()).padStart(2, '0');
-        const mm = String(now.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
-        const yy = String(now.getFullYear()).slice(-2);
-        const hrs = String(now.getHours()).padStart(2, '0');
-        const mins = String(now.getMinutes()).padStart(2, '0');
-        
-        const timestamp = `${dd}${mm}${yy}_${hrs}${mins}`;
-        const fileName = `${currentSubject}_${timestamp}.pdf`;
-
-        // --- PDF Content ---
-        doc.setFontSize(16);
-        doc.text(`Test Result: ${currentSubject}`, 20, 20);
-        doc.setFontSize(12);
-        doc.text(`Date/Time: ${dd}/${mm}/20${yy} ${hrs}:${mins}`, 20, 30);
-        doc.text(`Score: ${score} / 30`, 20, 40);
-        
-        let y = 60;
-        doc.setFontSize(10);
-        doc.text(`Incorrect Questions Detail:`, 20, 50);
-        
-        trans.forEach(t => {
-            if(y > 270) { doc.addPage(); y = 20; }
-            // Truncate long questions for the PDF layout
-            const displayQ = t.q.length > 85 ? t.q.substring(0, 85) + "..." : t.q;
-            doc.text(`Q: ${displayQ}`, 20, y);
-            doc.text(`Your Ans: ${t.u || t.user} | Correct: ${t.c || t.correct}`, 20, y + 5);
-            y += 15;
+        snap.forEach(child => {
+            const data = child.val();
+            list.innerHTML += `<div style="border:1px solid #ccc; padding:10px; margin:5px; border-radius:5px;">
+                <strong>${data.subject}</strong> - ${data.startTime}<br>
+                Score: ${data.finalScore || 'In Progress'} / 30 | Status: ${data.status}
+            </div>`;
         });
-
-        // Save with the specific naming convention: Module_DDMMYY_HHMM
-        doc.save(fileName);
     }
+
+    function resetResults() { if(confirm("Clear all student history?")) db.ref('results').remove(); }
 </script>
 </body>
 </html>
