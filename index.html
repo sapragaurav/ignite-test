@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IGNITE Secure Portal V3.6.1</title>
+    <title>IGNITE Portal V4.0</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
@@ -11,27 +11,19 @@
         body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; margin: 0; padding: 0; }
         .container { max-width: 1000px; margin: 20px auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .hidden { display: none !important; }
-        .btn { padding: 10px 15px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; margin: 2px; transition: 0.2s; }
+        .btn { padding: 10px 15px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; margin: 2px; }
         .btn-primary { background: #3498db; color: white; }
-        .btn-primary:hover { background: #2980b9; }
         .btn-danger { background: #e74c3c; color: white; }
-        
-        /* Login Modal Styles */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); display: flex; justify-content: center; align-items: center; z-index: 1000; }
-        .modal-card { background: white; padding: 30px; border-radius: 12px; width: 90%; max-width: 400px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
-        .modal-card input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
-        
-        /* Table Styles */
+        .modal-card { background: white; padding: 30px; border-radius: 12px; width: 90%; max-width: 400px; text-align: center; }
+        .modal-card input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
         th, td { padding: 12px; border: 1px solid #eee; text-align: left; }
-        .archived-row { background: #fff5f5; color: #c0392b; }
-        
-        /* Nav & Grid */
         .nav-grid { display: flex; flex-wrap: wrap; justify-content: center; margin-bottom: 20px; }
         .btn-nav { background: #ecf0f1; border: 1px solid #bdc3c7; width: 40px; height: 40px; margin: 3px; border-radius: 5px; cursor: pointer; }
         .active-nav { border: 2px solid #2c3e50; background: #d5d8dc; }
         .answered-nav { background: #3498db !important; color: white; }
-        .question-box { border: 1px solid #eee; padding: 20px; border-radius: 10px; background: #fff; }
+        .question-box { border: 1px solid #eee; padding: 20px; border-radius: 10px; }
         .option { display: block; padding: 12px; margin: 8px 0; border: 1px solid #eee; border-radius: 8px; cursor: pointer; }
     </style>
 </head>
@@ -40,67 +32,96 @@
 <div id="app" class="container">
     
     <div id="login-modal" class="modal-overlay hidden">
-    <div class="modal-card">
-        <div style="display:flex; border-bottom:1px solid #ddd; margin-bottom:15px;">
-            <button id="tab-student" class="btn" style="flex:1; border-radius:0;" onclick="switchLoginTab('student')">Student</button>
-            <button id="tab-admin" class="btn" style="flex:1; border-radius:0;" onclick="switchLoginTab('admin')">Admin</button>
+        <div class="modal-card">
+            <div style="display:flex; border-bottom:1px solid #ddd; margin-bottom:15px;">
+                <button id="tab-student" class="btn btn-primary" style="flex:1; border-radius:0;" onclick="switchLoginTab('student')">Student</button>
+                <button id="tab-admin" class="btn" style="flex:1; border-radius:0;" onclick="switchLoginTab('admin')">Admin</button>
+            </div>
+            <div id="student-login-fields">
+                <h3>Student Access</h3>
+                <input type="text" id="stu-org-id" placeholder="Organisation ID">
+                <input type="text" id="stu-name" placeholder="Full Name">
+                <button class="btn btn-primary" style="width:100%;" onclick="studentLogin()">Enter Portal</button>
+            </div>
+            <div id="admin-login-fields" class="hidden">
+                <h3>Admin Login</h3>
+                <input type="email" id="login-email" placeholder="Email">
+                <input type="password" id="login-pass" placeholder="Password">
+                <button class="btn btn-primary" style="width:100%;" onclick="attemptLogin()">Login</button>
+            </div>
+            <button class="btn" style="width:100%; margin-top:10px; color:#7f8c8d;" onclick="closeLogin()">Cancel</button>
         </div>
-
-        <div id="student-login-fields">
-            <h3>Student Access</h3>
-            <input type="text" id="stu-org-id" placeholder="Organisation ID (e.g. ORG101)">
-            <input type="text" id="stu-name" placeholder="Your Full Name">
-            <button class="btn btn-primary" style="width:100%;" onclick="studentLogin()">Enter Portal</button>
-        </div>
-
-        <div id="admin-login-fields" class="hidden">
-            <h3>Admin Login</h3>
-            <input type="email" id="login-email" placeholder="Email Address">
-            <input type="password" id="login-pass" placeholder="Password">
-            <button class="btn btn-primary" style="width:100%;" onclick="attemptLogin()">Login</button>
-        </div>
-        
-        <button class="btn" style="width:100%; margin-top:10px; color:#7f8c8d;" onclick="closeLogin()">Cancel</button>
     </div>
-</div>
 
     <div id="main-menu">
-        <h1 style="text-align:center; color: #2c3e50;">IGNITE Portal V3.6.1</h1>
-        <div style="display:grid; gap:12px; max-width: 400px; margin: 0 auto;">
-            <button class="btn btn-primary" style="padding: 18px;" onclick="startTest('Maths')">Start Maths Test</button>
-            <button class="btn btn-primary" style="padding: 18px;" onclick="startTest('English')">Start English Test</button>
-            <button class="btn btn-primary" style="padding: 18px;" onclick="startTest('General')">Start General Ability</button>
+        <h1 style="text-align:center;">IGNITE Portal V4.0</h1>
+        <div id="student-welcome" class="hidden" style="text-align:center; margin-bottom:20px; color:#27ae60; font-weight:bold;"></div>
+        <div style="display:grid; gap:10px; max-width:400px; margin:0 auto;">
+            <button class="btn btn-primary" onclick="startTest('Maths')">Start Maths Test</button>
+            <button class="btn btn-primary" onclick="startTest('English')">Start English Test</button>
+            <button class="btn btn-primary" onclick="startTest('General')">Start General Ability</button>
         </div>
-        <div style="text-align: center; margin-top: 40px;">
-            <button class="btn" style="background:#bdc3c7; color:#2c3e50; font-size: 0.8em;" onclick="openLogin()">ADMIN DASHBOARD</button>
+        <div style="text-align:center; margin-top:30px;">
+            <button class="btn" onclick="openLogin()">ADMIN / STUDENT LOGIN</button>
         </div>
     </div>
 
     <div id="admin-panel" class="hidden">
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h2>Dashboard</h2>
-        <button class="btn btn-danger" onclick="logout()">Secure Logout</button>
-    </div>
-    <div id="admin-nav" style="margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 10px;">
-        <button class="btn btn-primary" onclick="showSection('results')">View Results</button>
-        <button id="nav-manager" class="btn btn-primary hidden" onclick="showSection('manager')">Manage Questions</button>
-        <button id="nav-upload" class="btn hidden" style="background: #9b59b6; color: white;" onclick="showSection('upload')">Bulk Upload</button>
-        <button id="nav-users" class="btn hidden" style="background: #27ae60; color: white;" onclick="showSection('users')">User Management</button>
-    </div>
-    
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h2>Dashboard</h2>
+            <button class="btn btn-danger" onclick="logout()">Logout</button>
+        </div>
+        <div style="margin-bottom:20px; border-bottom:2px solid #eee; padding-bottom:10px;">
+            <button class="btn btn-primary" onclick="showSection('results')">View Results</button>
+            <button id="nav-manager" class="btn btn-primary hidden" onclick="showSection('manager')">Manage Questions</button>
+            <button id="nav-upload" class="btn hidden" style="background:#9b59b6; color:white;" onclick="showSection('upload')">Bulk Upload</button>
+            <button id="nav-users" class="btn hidden" style="background:#27ae60; color:white;" onclick="showSection('users')">User Management</button>
+        </div>
+
+        <div id="results-area" class="hidden"><div id="results-list"></div></div>
+        
+        <div id="manager-area" class="hidden">
+            <div id="stats-bar"></div>
+            <select id="mgmt-subject" class="btn" onchange="loadQuestions()">
+                <option value="Maths">Maths</option><option value="English">English</option><option value="General">General Ability</option>
+            </select>
+            <table>
+                <thead><tr><th><input type="checkbox" id="master-check" onclick="toggleAll(this)"></th><th>Question</th><th>Status</th><th>Edit</th></tr></thead>
+                <tbody id="questions-table-body"></tbody>
+            </table>
+        </div>
+
+        <div id="upload-area" class="hidden">
+            <textarea id="json-input" style="width:100%; height:150px;"></textarea>
+            <select id="upload-subject" class="btn"><option value="Maths">Maths</option><option value="English">English</option><option value="General">General Ability</option></select>
+            <button class="btn btn-primary" onclick="processUpload()">Import & Append</button>
+        </div>
+
+        <div id="users-area" class="hidden">
+            <h3>Organisation Management</h3>
+            <div style="background:#eee; padding:15px; border-radius:8px; margin-bottom:20px;">
+                <input type="text" id="new-org-id" placeholder="Org ID (e.g. SCH01)">
+                <input type="text" id="new-org-name" placeholder="Org Name">
+                <input type="email" id="new-org-email" placeholder="Admin Email">
+                <button class="btn btn-primary" onclick="createOrg()">Create Org</button>
+            </div>
+            <table>
+                <thead><tr><th>ID</th><th>Name</th><th>Admin Email</th><th>Action</th></tr></thead>
+                <tbody id="orgs-table-body"></tbody>
+            </table>
+        </div>
     </div>
 
     <div id="test-screen" class="hidden">
-        <div id="timer" style="text-align:right; font-size:2em; font-weight:bold; color:#e74c3c; margin-bottom: 10px;">30:00</div>
+        <div id="timer" style="text-align:right; font-size:2em; font-weight:bold; color:red;">30:00</div>
         <div id="nav-grid" class="nav-grid"></div>
-        <div id="passage-container" class="hidden" style="background: #f9f9f9; padding: 20px; border-left: 6px solid #3498db; margin-bottom: 20px; font-style: italic;"></div>
+        <div id="passage-container" class="hidden" style="background:#f9f9f9; padding:15px; border-left:5px solid #3498db;"></div>
         <div id="question-area"></div>
-        <div style="display:flex; justify-content: space-between; margin-top: 20px;">
-            <button class="btn" style="background:#95a5a6; color:white;" onclick="prev()">Previous</button>
-            <button class="btn" style="background:#f1c40f; color:white;" onclick="toggleFlag()">Flag Question</button>
-            <button class="btn" style="background:#95a5a6; color:white;" onclick="next()">Next</button>
+        <div style="display:flex; justify-content:space-between; margin-top:20px;">
+            <button class="btn" onclick="prev()">Previous</button>
+            <button class="btn" onclick="next()">Next</button>
         </div>
-        <button id="submit-btn" class="btn btn-danger" style="width:100%; margin-top:30px; padding: 20px; font-size: 1.2em; display:none;" onclick="finishTest()">Finalize and Submit</button>
+        <button id="submit-btn" class="btn btn-danger" style="width:100%; margin-top:20px; display:none;" onclick="finishTest()">Submit</button>
     </div>
 </div>
 
@@ -118,16 +139,16 @@
     const db = firebase.database();
     const auth = firebase.auth();
 
-    let currentUser = null; 
-    let testId = "", testQuestions = [], currentIndex = 0, userAnswers = {}, flagged = new Set();
-    let startTime = 0, questionStartTime = 0, timerInt, allMgmtQuestions = [];
+    let currentUser = null, testId = "", testQuestions = [], currentIndex = 0, userAnswers = {}, timerInt;
 
-    // --- LOGIN & AUTH ---
-    function openLogin() { document.getElementById('login-modal').classList.remove('hidden'); document.getElementById('stu-org-id').focus(); }
+    // LOGIN LOGIC
+    function openLogin() { document.getElementById('login-modal').classList.remove('hidden'); }
     function closeLogin() { document.getElementById('login-modal').classList.add('hidden'); }
     function switchLoginTab(role) {
         document.getElementById('student-login-fields').classList.toggle('hidden', role !== 'student');
         document.getElementById('admin-login-fields').classList.toggle('hidden', role !== 'admin');
+        document.getElementById('tab-student').className = role === 'student' ? 'btn btn-primary' : 'btn';
+        document.getElementById('tab-admin').className = role === 'admin' ? 'btn btn-primary' : 'btn';
     }
 
     async function attemptLogin() {
@@ -136,26 +157,26 @@
         try {
             const userCredential = await auth.signInWithEmailAndPassword(email, pass);
             const uid = userCredential.user.uid;
-            
-            // Check Role in Database
             const adminSnap = await db.ref(`admins/${uid}`).get();
+            
             if(adminSnap.exists()) {
                 currentUser = { role: adminSnap.val().role, uid: uid };
-                setupAdminUI();
+                if(currentUser.role === 'super') {
+                    document.getElementById('nav-manager').classList.remove('hidden');
+                    document.getElementById('nav-upload').classList.remove('hidden');
+                    document.getElementById('nav-users').classList.remove('hidden');
+                }
             } else {
-                // If not in 'admins' node, they are an Org Admin
                 const orgSnap = await db.ref('orgs').orderByChild('adminEmail').equalTo(email).get();
                 if(orgSnap.exists()) {
-                    let orgId = Object.keys(orgSnap.val())[0];
-                    currentUser = { role: 'org', orgId: orgId };
-                    setupAdminUI();
-                } else { throw new Error("No admin profile found."); }
+                    currentUser = { role: 'org', orgId: Object.keys(orgSnap.val())[0] };
+                } else { throw new Error("No role found"); }
             }
             closeLogin();
             document.getElementById('main-menu').classList.add('hidden');
             document.getElementById('admin-panel').classList.remove('hidden');
             showSection('results');
-        } catch(e) { alert("Login Error: " + e.message); }
+        } catch(e) { alert(e.message); }
     }
 
     async function studentLogin() {
@@ -163,61 +184,37 @@
         const name = document.getElementById('stu-name').value.trim();
         const orgSnap = await db.ref(`orgs/${orgId}`).get();
         if(!orgSnap.exists()) return alert("Invalid Org ID");
-        currentUser = { role: 'student', orgId: orgId, name: name };
+        currentUser = { role: 'student', orgId, name };
         closeLogin();
-        document.getElementById('main-menu').classList.add('hidden');
-        document.getElementById('test-screen').classList.remove('hidden');
-        // This would lead to subject selection or start test
-        alert("Logged in as " + name + ". Please select a subject from the main menu.");
-        document.getElementById('test-screen').classList.add('hidden');
-        document.getElementById('main-menu').classList.remove('hidden');
+        document.getElementById('student-welcome').innerText = "Logged in: " + name + " (" + orgId + ")";
+        document.getElementById('student-welcome').classList.remove('hidden');
     }
 
-    function setupAdminUI() {
-        // Only show certain buttons to Super Admin
-        if(currentUser.role === 'super') {
-            document.getElementById('nav-manager').classList.remove('hidden');
-            document.getElementById('nav-upload').classList.remove('hidden');
-            document.getElementById('nav-users').classList.remove('hidden');
-        }
-    }
-
-    // --- SECTION NAVIGATION ---
+    // NAVIGATION
     function showSection(sec) {
-        ['results-area', 'manager-area', 'upload-area', 'users-area'].forEach(id => {
-            const el = document.getElementById(id); if(el) el.classList.add('hidden');
-        });
-        const target = document.getElementById(sec + '-area');
-        if(target) target.classList.remove('hidden');
-        
+        ['results-area', 'manager-area', 'upload-area', 'users-area'].forEach(id => document.getElementById(id).classList.add('hidden'));
+        document.getElementById(sec + '-area').classList.remove('hidden');
         if(sec === 'results') loadResults();
         if(sec === 'manager') loadQuestions();
         if(sec === 'users') loadOrgs();
     }
 
-    // --- RESULTS (FIXED SCORE & TIME) ---
+    // RESULTS (SUPER & ORG VIEW)
     async function loadResults() {
         const list = document.getElementById('results-list');
         list.innerHTML = "Loading...";
-        
-        // If Super, get all. If Org, get only their branch.
         const snap = await db.ref('results').get();
         if(!snap.exists()) { list.innerHTML = "No results."; return; }
         
-        let allResults = [];
+        let arr = [];
         snap.forEach(orgNode => {
             if(currentUser.role === 'super' || orgNode.key === currentUser.orgId) {
-                orgNode.forEach(testNode => {
-                    let data = testNode.val();
-                    data.id = testNode.key;
-                    allResults.push(data);
-                });
+                orgNode.forEach(testNode => { let v = testNode.val(); v.id = testNode.key; arr.push(v); });
             }
         });
-
-        allResults.sort((a,b) => b.timestamp - a.timestamp);
+        arr.sort((a,b) => b.timestamp - a.timestamp);
         list.innerHTML = "";
-        allResults.forEach(data => {
+        arr.forEach(data => {
             let rows = "";
             if(data.responses) {
                 Object.keys(data.responses).forEach(k => {
@@ -225,109 +222,88 @@
                     rows += `<tr><td>${parseInt(k)+1}</td><td>${r.time}s</td><td>${r.ans}</td><td>${r.correctAnswer}</td><td>${r.isCorrect?'✅':'❌'}</td></tr>`;
                 });
             }
-            list.innerHTML += `
-                <div style="border:1px solid #ddd; padding:15px; margin:10px 0; border-radius:8px;">
-                    <div style="display:flex; justify-content:space-between;">
-                        <span><strong>${data.studentName}</strong> (${data.orgId})<br>${data.subject} | ${data.startTime}</span>
-                        <div style="text-align:right">
-                            <span style="font-size:1.2em; font-weight:bold; color:#3498db;">${data.finalScore || 0}/30</span><br>
-                            <button class="btn btn-primary" style="font-size:0.7em" onclick="document.getElementById('aud-${data.id}').classList.toggle('hidden')">Audit</button>
-                        </div>
+            list.innerHTML += `<div style="border:1px solid #ddd; padding:15px; margin:10px 0; border-radius:8px;">
+                <div style="display:flex; justify-content:space-between;">
+                    <span><strong>${data.studentName}</strong> | ${data.subject}<br><small>${data.startTime}</small></span>
+                    <div style="text-align:right">
+                        <span style="font-weight:bold; color:#3498db;">${data.finalScore || 0}/30</span><br>
+                        <button class="btn btn-primary" style="font-size:0.7em" onclick="document.getElementById('aud-${data.id}').classList.toggle('hidden')">Audit</button>
                     </div>
-                    <div id="aud-${data.id}" class="hidden">
-                        <table style="width:100%; font-size:0.8em; margin-top:10px;">
-                            <thead><tr><th>#</th><th>Time</th><th>User</th><th>Correct</th><th>Res</th></tr></thead>
-                            <tbody>${rows}</tbody>
-                        </table>
-                        <p style="font-size:0.8em; color:gray;">Finished: ${data.endTime || 'In Progress'}</p>
-                    </div>
-                </div>`;
+                </div>
+                <div id="aud-${data.id}" class="hidden">
+                    <table style="font-size:0.8em;"><thead><tr><th>#</th><th>Time</th><th>User</th><th>Correct</th><th>Res</th></tr></thead><tbody>${rows}</tbody></table>
+                    <p style="font-size:0.8em; color:gray;">Finished: ${data.endTime || 'In Progress'}</p>
+                </div>
+            </div>`;
         });
     }
 
-    // --- ORG MANAGEMENT ---
+    // ORG MANAGEMENT
     async function createOrg() {
         const id = document.getElementById('new-org-id').value.trim().toUpperCase();
         const name = document.getElementById('new-org-name').value.trim();
         const email = document.getElementById('new-org-email').value.trim();
-        if(!id || !name || !email) return alert("Fill all fields");
         await db.ref(`orgs/${id}`).set({ name, adminEmail: email, createdAt: Date.now() });
-        alert("Org Created!"); loadOrgs();
+        loadOrgs();
     }
-
     async function loadOrgs() {
         const snap = await db.ref('orgs').get();
         const tbody = document.getElementById('orgs-table-body');
         tbody.innerHTML = "";
-        if(!snap.exists()) return;
-        snap.forEach(c => {
+        if(snap.exists()) snap.forEach(c => {
             const o = c.val();
-            tbody.innerHTML += `<tr><td>${c.key}</td><td>${o.name}</td><td>${o.adminEmail}</td><td><button onclick="deleteOrg('${c.key}')">Del</button></td></tr>`;
+            tbody.innerHTML += `<tr><td>${c.key}</td><td>${o.name}</td><td>${o.adminEmail}</td><td><button onclick="db.ref('orgs/${c.key}').remove().then(loadOrgs)">Del</button></td></tr>`;
         });
     }
 
-    // --- TEST ENGINE ---
-    async function startTest(subject) {
-        if(!currentUser || !currentUser.orgId) return alert("Please login as a student first.");
-        const snap = await db.ref('bank/' + subject).get();
+    // TEST ENGINE
+    async function startTest(sub) {
+        if(!currentUser || !currentUser.orgId) return alert("Student login required.");
+        const snap = await db.ref('bank/'+sub).get();
         let pool = []; snap.forEach(c => { if(!c.val().archived) pool.push(c.val()); });
         if(pool.length < 30) return alert("Not enough questions.");
-        testQuestions = pool.sort(() => 0.5 - Math.random()).slice(0, 30);
-        
+        testQuestions = pool.sort(() => 0.5 - Math.random()).slice(0,30);
         const now = new Date();
-        testId = subject + "_" + now.getTime();
+        testId = sub + "_" + now.getTime();
         await db.ref(`results/${currentUser.orgId}/${testId}`).set({
-            subject, studentName: currentUser.name, orgId: currentUser.orgId,
+            subject: sub, studentName: currentUser.name, orgId: currentUser.orgId,
             startTime: now.toLocaleString(), timestamp: now.getTime(), status: "In Progress"
         });
         document.getElementById('main-menu').classList.add('hidden');
         document.getElementById('test-screen').classList.remove('hidden');
-        questionStartTime = Date.now(); startTimer(30 * 60); showQ();
+        currentIndex = 0; userAnswers = {}; startTimer(30*60); showQ();
     }
-
     function showQ() {
         const q = testQuestions[currentIndex];
         document.getElementById('passage-container').innerHTML = q.passage || "";
         document.getElementById('passage-container').classList.toggle('hidden', !q.passage);
-        let html = `<div class="question-box"><h3>Q${currentIndex+1}</h3><p>${q.q}</p>`;
-        q.options.forEach(o => {
-            const chk = userAnswers[currentIndex] === o ? "checked" : "";
-            html += `<label class="option"><input type="radio" name="o" value="${o}" ${chk} onchange="saveAnswer('${o}')"> ${o}</label>`;
-        });
-        document.getElementById('question-area').innerHTML = html + "</div>";
+        let h = `<div class="question-box"><h3>Q${currentIndex+1}</h3><p>${q.q}</p>`;
+        q.options.forEach(o => h += `<label class="option"><input type="radio" name="o" value="${o}" onchange="saveAnswer('${o}')"> ${o}</label>`);
+        document.getElementById('question-area').innerHTML = h + "</div>";
         document.getElementById('submit-btn').style.display = (currentIndex === 29) ? 'block' : 'none';
         renderNav();
     }
-
     function saveAnswer(v) {
         userAnswers[currentIndex] = v;
-        const time = Math.floor((Date.now() - questionStartTime) / 1000);
         db.ref(`results/${currentUser.orgId}/${testId}/responses/${currentIndex}`).set({
-            ans: v, time, correctAnswer: testQuestions[currentIndex].a,
+            ans: v, time: 0, correctAnswer: testQuestions[currentIndex].a,
             isCorrect: (v === testQuestions[currentIndex].a), qText: testQuestions[currentIndex].q
         });
         renderNav();
     }
-
     async function finishTest() {
         clearInterval(timerInt);
-        let score = 0; testQuestions.forEach((q, i) => { if(userAnswers[i] === q.a) score++; });
-        await db.ref(`results/${currentUser.orgId}/${testId}`).update({ 
-            status: "Completed", finalScore: score, endTime: new Date().toLocaleString() 
-        });
-        alert("Submitted!"); location.reload();
+        let s = 0; testQuestions.forEach((q,i) => { if(userAnswers[i] === q.a) s++; });
+        await db.ref(`results/${currentUser.orgId}/${testId}`).update({ status: "Completed", finalScore: s, endTime: new Date().toLocaleString() });
+        location.reload();
     }
-
     function renderNav() {
         const g = document.getElementById('nav-grid'); g.innerHTML = "";
-        for(let i=0; i<30; i++) {
-            let cls = i === currentIndex ? "active-nav " : (userAnswers[i] ? "answered-nav " : "");
-            g.innerHTML += `<button class="btn-nav ${cls}" onclick="jump(${i})">${i+1}</button>`;
-        }
+        for(let i=0; i<30; i++) g.innerHTML += `<button class="btn-nav ${i===currentIndex?'active-nav':''} ${userAnswers[i]?'answered-nav':''}" onclick="jump(${i})">${i+1}</button>`;
     }
-    function jump(i) { currentIndex = i; questionStartTime = Date.now(); showQ(); }
-    function next() { if(currentIndex < 29) jump(currentIndex + 1); }
-    function prev() { if(currentIndex > 0) jump(currentIndex - 1); }
+    function jump(i) { currentIndex = i; showQ(); }
+    function next() { if(currentIndex < 29) jump(currentIndex+1); }
+    function prev() { if(currentIndex > 0) jump(currentIndex-1); }
     function startTimer(s) {
         timerInt = setInterval(() => {
             let m = Math.floor(s/60), sec = s%60;
@@ -339,7 +315,3 @@
 </script>
 </body>
 </html>
-
-
-
-
