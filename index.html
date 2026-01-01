@@ -278,17 +278,35 @@
     }
 
     async function startTest(subject) {
-        const snap = await db.ref('bank/' + subject).get();
-        if(!snap.exists()) return alert("Empty.");
-        let pool = []; snap.forEach(c => { if(!c.val().archived) pool.push(c.val()); });
-        if(pool.length < 30) return alert("Need 30 live questions.");
-        testQuestions = pool.sort(() => 0.5 - Math.random()).slice(0, 30);
-        const now = new Date(); testId = subject + "_" + now.getTime(); startTime = now.getTime();
-        await db.ref('results/' + testId).set({ subject, status: "In Progress", startTime: now.toLocaleString(), timestamp: now.getTime() });
-        document.getElementById('main-menu').classList.add('hidden');
-        document.getElementById('test-screen').classList.remove('hidden');
-        questionStartTime = Date.now(); startTimer(30 * 60); showQ();
-    }
+    const snap = await db.ref('bank/' + subject).get();
+    if(!snap.exists()) return alert("Bank empty.");
+    
+    let pool = []; 
+    snap.forEach(c => { if(!c.val().archived) pool.push(c.val()); });
+    
+    if(pool.length < 30) return alert("Need 30 live questions.");
+    testQuestions = pool.sort(() => 0.5 - Math.random()).slice(0, 30);
+    
+    const now = new Date(); 
+    testId = subject + "_" + now.getTime(); 
+    
+    // SAVE DATA WITH STUDENT IDENTITY
+    const resultPath = `results/${currentUser.orgId}/${testId}`;
+    await db.ref(resultPath).set({ 
+        subject, 
+        status: "In Progress", 
+        startTime: now.toLocaleString(), 
+        timestamp: now.getTime(),
+        studentName: currentUser.name, // Saved for Super Admin to see
+        orgId: currentUser.orgId       // Saved for Org Admin filtering
+    });
+
+    document.getElementById('main-menu').classList.add('hidden');
+    document.getElementById('test-screen').classList.remove('hidden');
+    questionStartTime = Date.now(); 
+    startTimer(30 * 60); 
+    showQ();
+}
 
     function showQ() {
         const q = testQuestions[currentIndex];
@@ -457,5 +475,6 @@
 </script>
 </body>
 </html>
+
 
 
