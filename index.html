@@ -40,15 +40,29 @@
 <div id="app" class="container">
     
     <div id="login-modal" class="modal-overlay hidden">
-        <div class="modal-card">
-            <h2>Admin Security</h2>
-            <p style="color: #666; font-size: 0.9em;">Please enter your credentials to manage data.</p>
-            <input type="email" id="login-email" placeholder="Admin Email" autocomplete="email">
-            <input type="password" id="login-pass" placeholder="Password">
-            <button class="btn btn-primary" style="width:100%; padding: 15px;" onclick="attemptLogin()">Login</button>
-            <button class="btn" style="width:100%; margin-top:10px; background: none; color: #7f8c8d;" onclick="closeLogin()">Cancel</button>
+    <div class="modal-card">
+        <div style="display:flex; border-bottom:1px solid #ddd; margin-bottom:15px;">
+            <button id="tab-student" class="btn" style="flex:1; border-radius:0;" onclick="switchLoginTab('student')">Student</button>
+            <button id="tab-admin" class="btn" style="flex:1; border-radius:0;" onclick="switchLoginTab('admin')">Admin</button>
         </div>
+
+        <div id="student-login-fields">
+            <h3>Student Access</h3>
+            <input type="text" id="stu-org-id" placeholder="Organisation ID (e.g. ORG101)">
+            <input type="text" id="stu-name" placeholder="Your Full Name">
+            <button class="btn btn-primary" style="width:100%;" onclick="studentLogin()">Enter Portal</button>
+        </div>
+
+        <div id="admin-login-fields" class="hidden">
+            <h3>Admin Login</h3>
+            <input type="email" id="login-email" placeholder="Email Address">
+            <input type="password" id="login-pass" placeholder="Password">
+            <button class="btn btn-primary" style="width:100%;" onclick="attemptLogin()">Login</button>
+        </div>
+        
+        <button class="btn" style="width:100%; margin-top:10px; color:#7f8c8d;" onclick="closeLogin()">Cancel</button>
     </div>
+</div>
 
     <div id="main-menu">
         <h1 style="text-align:center; color: #2c3e50;">IGNITE Portal V3.6.1</h1>
@@ -332,31 +346,100 @@
         alert("Submitted! Score: " + score + "/30");
         location.reload();    }
 
+    let currentUser = null; // Stores {role: 'super'|'org', orgId: '...', name: '...'}
+
+    // Fix #1 & #2: Restored Audit and Finished Time Logic
     async function loadResults() {
-        const snap = await db.ref('results').get();
         const list = document.getElementById('results-list');
+        list.innerHTML = "Loading Results...";
+        
+        // Logic: Super Admin sees all, Org Admin sees only their OrgId
+        const path = (currentUser.role === 'super') ? 'results' : `results/${currentUser.orgId}`;
+        const snap = await db.ref(path).get();
+        
+        if(!snap.exists()) { list.innerHTML = "No history found."; return; }
         list.innerHTML = "";
-        if(!snap.exists()) return;
 
-        let arr = [];
-        snap.forEach(c => { let v = c.val(); v.id = c.key; arr.push(v); });
-        arr.sort((a,b) => b.timestamp - a.timestamp);
+        let resultsArray = [];
+        // Flatten the data for display if Super Admin
+        snap.forEach(child => {
+            if (currentUser.role === 'super') {
+                child.forEach(stuChild => {
+                    stuChild.forEach(testChild => {
+                        let data = testChild.val();
+                        data.id = testChild.key;
+                        resultsArray.push(data);
+                    });
+                });
+            } else {
+                child.forEach(testChild => {
+                    let data = testChild.val();
+                    data.id = testChild.key;
+                    resultsArray.push(data);
+                });
+            }
+        });
 
-        arr.forEach(data => {
+        resultsArray.sort((a,b) => b.timestamp - a.timestamp).forEach(data => {
+            let rows = "";
+            if(data.responses) {
+                Object.keys(data.responses).forEach(k => {
+                    const r = data.responses[k];
+                    rows += `<tr style="border-bottom:1px solid #eee;">
+                        <td>${parseInt(k)+1}</td>
+                        <td>${r.time}s</td>
+                        <td>${r.ans}</td>
+                        <td style="color:green">${r.correctAnswer}</td>
+                        <td>${r.isCorrect ? '✅' : '❌'}</td>
+                    </tr>`;
+                });
+            }
+
             list.innerHTML += `
-                <div style="border:1px solid #ccc; padding:15px; margin:10px 0; border-radius:8px; background:white;">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="border:1px solid #ddd; padding:15px; margin:10px 0; border-radius:8px;">
+                    <div style="display:flex; justify-content:space-between; align-items:start;">
                         <div>
-                            <strong>${data.subject}</strong> | ${data.startTime} <br>
-                            <small>Finished: ${data.endTime || 'N/A'}</small> </div>
+                            <strong>${data.studentName || 'Student'}</strong> | ${data.subject}<br>
+                            <small>Start: ${data.startTime}</small><br>
+                            <small>End: ${data.endTime || 'Still In Progress'}</small> </div>
                         <div style="text-align:right;">
-                            <span style="font-size:1.2em; color:#2980b9; font-weight:bold;">
-                                Score: ${data.finalScore !== undefined ? data.finalScore : '...'} / 30 </span><br>
-                            <button class="btn btn-primary" onclick="document.getElementById('audit-${data.id}').classList.toggle('hidden')">View Detailed Audit</button> </div>
+                            <span style="font-size:1.2em; font-weight:bold; color:#2980b9;">${data.finalScore || 0} / 30</span><br>
+                            <button class="btn btn-primary" style="font-size:0.7em;" onclick="document.getElementById('aud-${data.id}').classList.toggle('hidden')">View Detailed Audit</button>
+                        </div>
                     </div>
-                    <div id="audit-${data.id}" class="hidden">...audit table code here...</div>
+                    <div id="aud-${data.id}" class="hidden" style="margin-top:10px; border-top:1px solid #eee; padding-top:10px;">
+                        <table style="width:100%; font-size:0.8em;">
+                            <thead><tr><th>#</th><th>Time</th><th>User</th><th>Ans</th><th>Res</th></tr></thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>
                 </div>`;
         });
+    }
+
+    // New Tab Switcher for Login
+    function switchLoginTab(role) {
+        document.getElementById('student-login-fields').classList.toggle('hidden', role !== 'student');
+        document.getElementById('admin-login-fields').classList.toggle('hidden', role !== 'admin');
+        document.getElementById('tab-student').className = role === 'student' ? 'btn btn-primary' : 'btn';
+        document.getElementById('tab-admin').className = role === 'admin' ? 'btn btn-primary' : 'btn';
+    }
+
+    // Student Login Logic
+    async function studentLogin() {
+        const orgId = document.getElementById('stu-org-id').value.trim().toUpperCase();
+        const stuName = document.getElementById('stu-name').value.trim();
+        
+        if(!orgId || !stuName) return alert("Please enter Org ID and your Name.");
+
+        // Check if Org Exists
+        const orgSnap = await db.ref(`orgs/${orgId}`).get();
+        if(!orgSnap.exists()) return alert("Invalid Organisation ID.");
+
+        currentUser = { role: 'student', orgId: orgId, name: stuName };
+        document.getElementById('main-menu').classList.add('hidden');
+        closeLogin();
+        alert(`Welcome, ${stuName}!`);
     }
 
     async function createOrg(orgName, adminEmail) {
@@ -374,4 +457,5 @@
 </script>
 </body>
 </html>
+
 
