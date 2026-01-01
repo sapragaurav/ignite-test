@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IGNITE Portal V4.0</title>
+    <title>IGNITE Portal V4.1</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
@@ -54,8 +54,8 @@
     </div>
 
     <div id="main-menu">
-        <h1 style="text-align:center;">IGNITE Portal V4.0</h1>
-        <div id="student-welcome" class="hidden" style="text-align:center; margin-bottom:20px; color:#27ae60; font-weight:bold;"></div>
+        <h1 style="text-align:center;">IGNITE Portal V4.1</h1>
+        <div id="student-welcome" class="hidden" style="text-align:center; margin-bottom:20px; color:#27ae60; font-weight:bold; background:#e8f8f5; padding:10px; border-radius:8px;"></div>
         <div style="display:grid; gap:10px; max-width:400px; margin:0 auto;">
             <button class="btn btn-primary" onclick="startTest('Maths')">Start Maths Test</button>
             <button class="btn btn-primary" onclick="startTest('English')">Start English Test</button>
@@ -78,10 +78,10 @@
             <button id="nav-users" class="btn hidden" style="background:#27ae60; color:white;" onclick="showSection('users')">User Management</button>
         </div>
 
-        <div id="results-area" class="hidden"><div id="results-list"></div></div>
+        <div id="results-area" class="hidden"><h3>Test History</h3><div id="results-list"></div></div>
         
         <div id="manager-area" class="hidden">
-            <div id="stats-bar"></div>
+            <h3>Question Bank</h3>
             <select id="mgmt-subject" class="btn" onchange="loadQuestions()">
                 <option value="Maths">Maths</option><option value="English">English</option><option value="General">General Ability</option>
             </select>
@@ -92,6 +92,7 @@
         </div>
 
         <div id="upload-area" class="hidden">
+            <h3>Bulk Upload</h3>
             <textarea id="json-input" style="width:100%; height:150px;"></textarea>
             <select id="upload-subject" class="btn"><option value="Maths">Maths</option><option value="English">English</option><option value="General">General Ability</option></select>
             <button class="btn btn-primary" onclick="processUpload()">Import & Append</button>
@@ -161,17 +162,20 @@
             
             if(adminSnap.exists()) {
                 currentUser = { role: adminSnap.val().role, uid: uid };
-                if(currentUser.role === 'super') {
-                    document.getElementById('nav-manager').classList.remove('hidden');
-                    document.getElementById('nav-upload').classList.remove('hidden');
-                    document.getElementById('nav-users').classList.remove('hidden');
-                }
             } else {
                 const orgSnap = await db.ref('orgs').orderByChild('adminEmail').equalTo(email).get();
                 if(orgSnap.exists()) {
                     currentUser = { role: 'org', orgId: Object.keys(orgSnap.val())[0] };
-                } else { throw new Error("No role found"); }
+                } else { throw new Error("Unauthorized Access"); }
             }
+            
+            // UI SETUP
+            if(currentUser.role === 'super') {
+                document.getElementById('nav-manager').classList.remove('hidden');
+                document.getElementById('nav-upload').classList.remove('hidden');
+                document.getElementById('nav-users').classList.remove('hidden');
+            }
+            
             closeLogin();
             document.getElementById('main-menu').classList.add('hidden');
             document.getElementById('admin-panel').classList.remove('hidden');
@@ -182,10 +186,13 @@
     async function studentLogin() {
         const orgId = document.getElementById('stu-org-id').value.trim().toUpperCase();
         const name = document.getElementById('stu-name').value.trim();
+        if(!orgId || !name) return alert("Fill all fields");
+        
         const orgSnap = await db.ref(`orgs/${orgId}`).get();
         if(!orgSnap.exists()) return alert("Invalid Org ID");
+        
         currentUser = { role: 'student', orgId, name };
-        closeLogin();
+        closeLogin(); // FIXED: Hide modal
         document.getElementById('student-welcome').innerText = "Logged in: " + name + " (" + orgId + ")";
         document.getElementById('student-welcome').classList.remove('hidden');
     }
@@ -199,7 +206,19 @@
         if(sec === 'users') loadOrgs();
     }
 
-    // RESULTS (SUPER & ORG VIEW)
+    // QUESTIONS
+    async function loadQuestions() {
+        const sub = document.getElementById('mgmt-subject').value;
+        const snap = await db.ref('bank/' + sub).get();
+        const tbody = document.getElementById('questions-table-body');
+        tbody.innerHTML = "";
+        if(snap.exists()) snap.forEach(c => {
+            let q = c.val();
+            tbody.innerHTML += `<tr><td><input type="checkbox"></td><td>${q.q}</td><td>${q.archived ? 'Archived':'Live'}</td><td><button>Edit</button></td></tr>`;
+        });
+    }
+
+    // RESULTS
     async function loadResults() {
         const list = document.getElementById('results-list');
         list.innerHTML = "Loading...";
@@ -209,10 +228,17 @@
         let arr = [];
         snap.forEach(orgNode => {
             if(currentUser.role === 'super' || orgNode.key === currentUser.orgId) {
-                orgNode.forEach(testNode => { let v = testNode.val(); v.id = testNode.key; arr.push(v); });
+                orgNode.forEach(testNode => { 
+                    let v = testNode.val(); 
+                    if(v.studentName) { // Filter out "garbage" data
+                        v.id = testNode.key; 
+                        v.org = orgNode.key;
+                        arr.push(v); 
+                    }
+                });
             }
         });
-        arr.sort((a,b) => b.timestamp - a.timestamp);
+        arr.sort((a,b) => (b.timestamp || 0) - (a.timestamp || 0));
         list.innerHTML = "";
         arr.forEach(data => {
             let rows = "";
@@ -222,9 +248,9 @@
                     rows += `<tr><td>${parseInt(k)+1}</td><td>${r.time}s</td><td>${r.ans}</td><td>${r.correctAnswer}</td><td>${r.isCorrect?'✅':'❌'}</td></tr>`;
                 });
             }
-            list.innerHTML += `<div style="border:1px solid #ddd; padding:15px; margin:10px 0; border-radius:8px;">
+            list.innerHTML += `<div style="border:1px solid #ddd; padding:15px; margin:10px 0; border-radius:8px; background:white;">
                 <div style="display:flex; justify-content:space-between;">
-                    <span><strong>${data.studentName}</strong> | ${data.subject}<br><small>${data.startTime}</small></span>
+                    <span><strong>${data.studentName}</strong> [${data.org}]<br>${data.subject} | ${data.startTime}</span>
                     <div style="text-align:right">
                         <span style="font-weight:bold; color:#3498db;">${data.finalScore || 0}/30</span><br>
                         <button class="btn btn-primary" style="font-size:0.7em" onclick="document.getElementById('aud-${data.id}').classList.toggle('hidden')">Audit</button>
@@ -232,7 +258,6 @@
                 </div>
                 <div id="aud-${data.id}" class="hidden">
                     <table style="font-size:0.8em;"><thead><tr><th>#</th><th>Time</th><th>User</th><th>Correct</th><th>Res</th></tr></thead><tbody>${rows}</tbody></table>
-                    <p style="font-size:0.8em; color:gray;">Finished: ${data.endTime || 'In Progress'}</p>
                 </div>
             </div>`;
         });
@@ -243,6 +268,7 @@
         const id = document.getElementById('new-org-id').value.trim().toUpperCase();
         const name = document.getElementById('new-org-name').value.trim();
         const email = document.getElementById('new-org-email').value.trim();
+        if(!id || !name || !email) return alert("Fill all fields");
         await db.ref(`orgs/${id}`).set({ name, adminEmail: email, createdAt: Date.now() });
         loadOrgs();
     }
@@ -258,11 +284,12 @@
 
     // TEST ENGINE
     async function startTest(sub) {
-        if(!currentUser || !currentUser.orgId) return alert("Student login required.");
+        if(!currentUser || !currentUser.orgId) return alert("Please Login as Student first.");
         const snap = await db.ref('bank/'+sub).get();
         let pool = []; snap.forEach(c => { if(!c.val().archived) pool.push(c.val()); });
         if(pool.length < 30) return alert("Not enough questions.");
         testQuestions = pool.sort(() => 0.5 - Math.random()).slice(0,30);
+        
         const now = new Date();
         testId = sub + "_" + now.getTime();
         await db.ref(`results/${currentUser.orgId}/${testId}`).set({
