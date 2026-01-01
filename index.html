@@ -127,13 +127,23 @@
     let startTime = 0, questionStartTime = 0, timerInt, allMgmtQuestions = [];
 
     // --- ADMIN NAVIGATION ---
-    function showAdmin() {
-        if(prompt("Admin Password:") === "Admin 123") {
-            document.getElementById('main-menu').classList.add('hidden');
-            document.getElementById('admin-panel').classList.remove('hidden');
-            showSection('results');
-        }
+// Function to log in securely
+async function showAdmin() {
+    const email = prompt("Admin Email:");
+    const password = prompt("Admin Password:");
+    
+    try {
+        // This talks to Firebase Auth, not a local variable
+        await firebase.auth().signInWithEmailAndPassword(email, password);
+        
+        // If successful, show the panel
+        document.getElementById('main-menu').classList.add('hidden');
+        document.getElementById('admin-panel').classList.remove('hidden');
+        showSection('results');
+    } catch (error) {
+        alert("Access Denied: " + error.message);
     }
+}
 
     function showSection(sec) {
         ['results-area', 'manager-area', 'upload-area'].forEach(id => document.getElementById(id).classList.add('hidden'));
@@ -355,6 +365,7 @@
 </script>
 </body>
 </html>
+
 
 
 
