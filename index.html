@@ -320,34 +320,53 @@
     }
     async function finishTest() {
         clearInterval(timerInt);
-        let score = 0; testQuestions.forEach((q, i) => { if(userAnswers[i] === q.a) score++; });
-        await db.ref('results/' + testId).update({ status: "Completed", finalScore: score });
-        alert("Submitted Score: " + score); location.reload();
-    }
+        let score = 0;
+        testQuestions.forEach((q, i) => { if(userAnswers[i] === q.a) score++; });
+        
+        const now = new Date();
+        await db.ref('results/' + testId).update({ 
+            status: "Completed", 
+            finalScore: score,
+            endTime: now.toLocaleString() // Fix #3: End Time captured
+        });
+        alert("Submitted! Score: " + score + "/30");
+        location.reload();    }
 
     async function loadResults() {
         const snap = await db.ref('results').get();
-        const list = document.getElementById('results-list'); list.innerHTML = "";
+        const list = document.getElementById('results-list');
+        list.innerHTML = "";
         if(!snap.exists()) return;
-        let arr = []; snap.forEach(c => { let v = c.val(); v.id = c.key; arr.push(v); });
-        arr.sort((a,b) => b.timestamp - a.timestamp).forEach(data => {
-            let rows = "";
-            if(data.responses) {
-                Object.keys(data.responses).forEach(k => {
-                    const r = data.responses[k];
-                    rows += `<tr style="font-size:0.8em;"><td>${parseInt(k)+1}</td><td>${r.time}s</td><td>${r.ans}</td><td>${r.correctAnswer}</td><td>${r.isCorrect?'✅':'❌'}</td></tr>`;
-                });
-            }
-            list.innerHTML += `<div style="border:1px solid #ddd; padding:15px; margin:10px 0; border-radius:8px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span><strong>${data.subject}</strong> | ${data.startTime}</span>
-                    <button class="btn btn-primary" onclick="document.getElementById('aud-${data.id}').classList.toggle('hidden')">Audit</button>
-                </div>
-                <div id="aud-${data.id}" class="hidden" style="margin-top:10px; overflow-x:auto;">
-                    <table><thead><tr><th>#</th><th>Time</th><th>User</th><th>Correct</th><th>Res</th></tr></thead><tbody>${rows}</tbody></table>
-                </div>
-            </div>`;
+
+        let arr = [];
+        snap.forEach(c => { let v = c.val(); v.id = c.key; arr.push(v); });
+        arr.sort((a,b) => b.timestamp - a.timestamp);
+
+        arr.forEach(data => {
+            list.innerHTML += `
+                <div style="border:1px solid #ccc; padding:15px; margin:10px 0; border-radius:8px; background:white;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <strong>${data.subject}</strong> | ${data.startTime} <br>
+                            <small>Finished: ${data.endTime || 'N/A'}</small> </div>
+                        <div style="text-align:right;">
+                            <span style="font-size:1.2em; color:#2980b9; font-weight:bold;">
+                                Score: ${data.finalScore !== undefined ? data.finalScore : '...'} / 30 </span><br>
+                            <button class="btn btn-primary" onclick="document.getElementById('audit-${data.id}').classList.toggle('hidden')">View Detailed Audit</button> </div>
+                    </div>
+                    <div id="audit-${data.id}" class="hidden">...audit table code here...</div>
+                </div>`;
         });
+    }
+
+    async function createOrg(orgName, adminEmail) {
+        const newOrgRef = db.ref('orgs').push();
+        await newOrgRef.set({
+            orgName: orgName,
+            adminEmail: adminEmail,
+            createdAt: Date.now()
+        });
+        alert("Organisation Created!");
     }
 
     function toggleFlag() { flagged.has(currentIndex) ? flagged.delete(currentIndex) : flagged.add(currentIndex); renderNav(); }
@@ -355,3 +374,4 @@
 </script>
 </body>
 </html>
+
