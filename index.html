@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>IGNITE Portal V4.6</title>
+    <title>IGNITE Portal V4.6.1</title>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
@@ -22,8 +22,6 @@
         .student-group { background: #fff; border: 1px solid #d6dbdf; padding: 15px; margin-bottom: 20px; border-radius: 8px; border-left: 5px solid #3498db; }
         .nav-grid { display: flex; flex-wrap: wrap; justify-content: center; margin-bottom: 20px; }
         .btn-nav { background: #ecf0f1; border: 1px solid #bdc3c7; width: 40px; height: 40px; margin: 3px; border-radius: 5px; cursor: pointer; }
-        .active-nav { border: 2px solid #2c3e50; }
-        .answered-nav { background: #3498db !important; color: white; }
     </style>
 </head>
 <body>
@@ -39,7 +37,7 @@
             <div id="student-login-fields">
                 <h3>Student Access</h3>
                 <input type="text" id="stu-org-id" placeholder="Organisation ID">
-                <input type="password" id="stu-pass" placeholder="Student ID (e.g. smithj01)">
+                <input type="password" id="stu-pass" placeholder="Student ID (Password)">
                 <button class="btn btn-primary" style="width:100%;" onclick="studentLogin()">Enter Portal</button>
             </div>
             <div id="admin-login-fields" class="hidden">
@@ -53,7 +51,7 @@
     </div>
 
     <div id="main-menu">
-        <h1 style="text-align:center;">IGNITE Portal V4.6</h1>
+        <h1 style="text-align:center;">IGNITE Portal V4.6.1</h1>
         <div id="student-welcome" class="hidden" style="text-align:center; margin-bottom:20px; color:#27ae60; font-weight:bold; background:#e8f8f5; padding:15px; border-radius:8px;"></div>
         <div style="display:grid; gap:12px; max-width:400px; margin:0 auto;">
             <button class="btn btn-primary" style="padding: 15px;" onclick="startTest('Maths')">Start Maths Test</button>
@@ -79,16 +77,16 @@
         </div>
 
         <div id="results-area" class="hidden">
-            <input type="text" id="res-search" placeholder="Search Name, ID, or Org..." class="btn" style="width:100%; box-sizing:border-box; margin-bottom:10px;" onkeyup="filterResults()">
+            <input type="text" id="res-search" placeholder="Search..." class="btn" style="width:100%; box-sizing:border-box; margin-bottom:10px;" onkeyup="filterResults()">
             <div id="results-list"></div>
         </div>
 
         <div id="roster-area" class="hidden">
-            <h3>Authorised Student Roster</h3>
+            <h3>Authorise Student</h3>
             <div style="background:#eee; padding:15px; border-radius:8px; margin-bottom:15px;">
                 <input type="text" id="new-stu-first" placeholder="First Name">
                 <input type="text" id="new-stu-last" placeholder="Last Name">
-                <button class="btn btn-primary" onclick="addStudentToRoster()">Authorise Student</button>
+                <button class="btn btn-primary" id="roster-btn" onclick="addStudentToRoster()">Authorise Student</button>
             </div>
             <div id="roster-list"></div>
         </div>
@@ -132,7 +130,6 @@
 
     let currentUser = null, testId = "", testQuestions = [], currentIndex = 0, userAnswers = {}, timerInt, allResults = [];
 
-    // --- INITIALIZE SESSION ---
     window.onload = () => {
         const saved = localStorage.getItem('igniteUser');
         if(saved) { currentUser = JSON.parse(saved); applyUserUI(); }
@@ -155,91 +152,138 @@
         }
     }
 
-    // --- STUDENT LOGIN (THE WHITELIST CHECK) ---
     async function studentLogin() {
         const orgId = document.getElementById('stu-org-id').value.trim().toUpperCase();
         const studentId = document.getElementById('stu-pass').value.trim().toLowerCase();
-        
         if(!orgId || !studentId) return alert("Fill all fields");
-
         const stuSnap = await db.ref(`orgs/${orgId}/roster/${studentId}`).get();
         if(!stuSnap.exists()) return alert("Invalid credentials or student not authorised.");
-
         const data = stuSnap.val();
-        currentUser = { role: 'student', orgId: orgId, name: data.fullName, studentId: studentId };
+        currentUser = { role: 'student', orgId, name: data.fullName, studentId };
         localStorage.setItem('igniteUser', JSON.stringify(currentUser));
-        closeLogin(); applyUserUI();
+        location.reload();
     }
 
-    // --- ROSTER MANAGEMENT (UNIQUE ID GENERATOR) ---
     async function addStudentToRoster() {
         const first = document.getElementById('new-stu-first').value.trim();
         const last = document.getElementById('new-stu-last').value.trim();
-        if(!first || !last) return alert("Enter names");
+        if(!first || !last) return alert("Please enter both First and Last names.");
 
-        const orgId = (currentUser.role === 'super') ? prompt("Enter Org ID for this student:") : currentUser.orgId;
+        let orgId = currentUser.orgId;
+        if(currentUser.role === 'super') {
+            orgId = prompt("Enter Organisation ID to add this student to:").trim().toUpperCase();
+        }
         if(!orgId) return;
 
-        // Generate ID: last + firstInitial (e.g., smithj)
-        let baseId = (last + first.charAt(0)).toLowerCase().replace(/\s/g, '');
+        const baseId = (last.substring(0, 5) + first.charAt(0)).toLowerCase().replace(/[^a-z0-9]/g, '');
         let finalId = baseId;
         
-        // Collision Check
-        const rosterSnap = await db.ref(`orgs/${orgId}/roster`).get();
-        if(rosterSnap.exists()) {
-            let count = 1;
-            while(rosterSnap.hasChild(finalId)) {
-                finalId = baseId + (count < 10 ? '0' + count : count);
-                count++;
+        try {
+            const rosterRef = db.ref(`orgs/${orgId}/roster`);
+            const rosterSnap = await rosterRef.get();
+            
+            if(rosterSnap.exists()) {
+                let count = 1;
+                while(rosterSnap.hasChild(finalId)) {
+                    finalId = baseId + (count < 10 ? '0' + count : count);
+                    count++;
+                }
             }
-        }
 
-        await db.ref(`orgs/${orgId}/roster/${finalId}`).set({
-            firstName: first, lastName: last, fullName: first + " " + last, studentId: finalId
-        });
-        alert(`Authorised! Student ID is: ${finalId}`);
-        loadRoster();
+            await rosterRef.child(finalId).set({
+                firstName: first, lastName: last, fullName: first + " " + last, studentId: finalId
+            });
+            
+            alert(`Student Authorized!\nName: ${first} ${last}\nStudent ID: ${finalId}\n(Use this ID as password)`);
+            document.getElementById('new-stu-first').value = "";
+            document.getElementById('new-stu-last').value = "";
+            loadRoster();
+        } catch (e) {
+            alert("Error: " + e.message);
+        }
     }
 
     async function loadRoster() {
         const list = document.getElementById('roster-list');
+        list.innerHTML = "Loading roster...";
         const orgId = currentUser.orgId;
-        const path = currentUser.role === 'super' ? `orgs` : `orgs/${orgId}/roster`;
-        const snap = await db.ref(path).get();
         
-        let html = `<table><thead><tr><th>ID (Password)</th><th>Name</th><th>Action</th></tr></thead><tbody>`;
         if(currentUser.role === 'super') {
-            snap.forEach(org => { if(org.val().roster) {
-                Object.values(org.val().roster).forEach(s => {
-                    html += `<tr><td>${s.studentId}</td><td>${s.fullName} (${org.key})</td><td><button onclick="delStu('${org.key}','${s.studentId}')">Del</button></td></tr>`;
-                });
-            }});
+            const snap = await db.ref('orgs').get();
+            let html = `<table><thead><tr><th>Org</th><th>Student ID</th><th>Name</th><th>Action</th></tr></thead><tbody>`;
+            snap.forEach(org => {
+                if(org.val().roster) {
+                    Object.values(org.val().roster).forEach(s => {
+                        html += `<tr><td>${org.key}</td><td>${s.studentId}</td><td>${s.fullName}</td><td><button onclick="delStu('${org.key}','${s.studentId}')">Del</button></td></tr>`;
+                    });
+                }
+            });
+            list.innerHTML = html + "</tbody></table>";
         } else {
-            if(snap.exists()) snap.forEach(c => {
+            const snap = await db.ref(`orgs/${orgId}/roster`).get();
+            if(!snap.exists()) return list.innerHTML = "No students authorised yet.";
+            let html = `<table><thead><tr><th>Student ID</th><th>Name</th><th>Action</th></tr></thead><tbody>`;
+            snap.forEach(c => {
                 const s = c.val();
                 html += `<tr><td>${s.studentId}</td><td>${s.fullName}</td><td><button onclick="delStu('${orgId}','${s.studentId}')">Del</button></td></tr>`;
             });
+            list.innerHTML = html + "</tbody></table>";
         }
-        list.innerHTML = html + "</tbody></table>";
     }
 
-    // --- FLAT RESULTS LOGIC ---
+    async function delStu(org, id) {
+        if(confirm("Revoke authorisation for this student?")) {
+            await db.ref(`orgs/${org}/roster/${id}`).remove();
+            loadRoster();
+        }
+    }
+
+    // --- REMAINING UTILITIES ---
+    async function attemptLogin() {
+        const e = document.getElementById('login-email').value, p = document.getElementById('login-pass').value;
+        try {
+            const u = await auth.signInWithEmailAndPassword(e, p);
+            const snap = await db.ref(`admins/${u.user.uid}`).get();
+            if(snap.exists()) currentUser = { role: snap.val().role, uid: u.user.uid };
+            else {
+                const orgs = await db.ref('orgs').get();
+                orgs.forEach(o => { if(o.val().adminEmail === e) currentUser = { role: 'org', orgId: o.key }; });
+            }
+            if(!currentUser) throw new Error("No admin account found.");
+            localStorage.setItem('igniteUser', JSON.stringify(currentUser));
+            location.reload();
+        } catch(err) { alert(err.message); }
+    }
+
+    function logout() { localStorage.removeItem('igniteUser'); auth.signOut().then(() => location.reload()); }
+    function openLogin() { document.getElementById('login-modal').classList.remove('hidden'); }
+    function closeLogin() { document.getElementById('login-modal').classList.add('hidden'); }
+    function switchLoginTab(role) {
+        document.getElementById('student-login-fields').classList.toggle('hidden', role !== 'student');
+        document.getElementById('admin-login-fields').classList.toggle('hidden', role !== 'admin');
+        document.getElementById('tab-student').className = role === 'student' ? 'btn btn-primary' : 'btn';
+        document.getElementById('tab-admin').className = role === 'admin' ? 'btn btn-primary' : 'btn';
+    }
+    function showSection(sec) {
+        ['results-area', 'manager-area', 'users-area', 'roster-area'].forEach(id => document.getElementById(id).classList.add('hidden'));
+        document.getElementById(sec + '-area').classList.remove('hidden');
+        if(sec === 'results') loadResults();
+        if(sec === 'roster') loadRoster();
+        if(sec === 'manager') loadQuestions();
+        if(sec === 'users') loadOrgs();
+    }
     async function loadResults() {
         const list = document.getElementById('results-list');
         const snap = await db.ref('results').get();
-        if(!snap.exists()) return list.innerHTML = "No results.";
-        
+        if(!snap.exists()) return list.innerHTML = "No results found.";
         allResults = [];
         snap.forEach(c => {
             const r = c.val();
-            if(currentUser.role === 'super' || r.orgId === currentUser.orgId) {
-                r.id = c.key; allResults.push(r);
-            }
+            if(currentUser.role === 'super' || r.orgId === currentUser.orgId) { r.id = c.key; allResults.push(r); }
         });
         allResults.sort((a,b) => b.timestamp - a.timestamp);
         renderResults(allResults);
     }
-
     function renderResults(data) {
         const list = document.getElementById('results-list');
         list.innerHTML = "";
@@ -252,83 +296,23 @@
             </div>`;
         });
     }
-
-    async function startTest(sub) {
-        if(!currentUser) return;
-        const snap = await db.ref('bank/'+sub).get();
-        let pool = []; snap.forEach(c => { if(!c.val().archived) pool.push(c.val()); });
-        testQuestions = pool.sort(() => 0.5 - Math.random()).slice(0,30);
-        testId = sub + "_" + Date.now();
-        document.getElementById('main-menu').classList.add('hidden');
-        document.getElementById('test-screen').classList.remove('hidden');
-        currentIndex = 0; userAnswers = {}; startTimer(30*60); showQ();
-    }
-
-    async function finishTest() {
-        let s = 0; testQuestions.forEach((q,i) => { if(userAnswers[i] === q.a) s++; });
-        await db.ref(`results/${testId}`).set({
-            orgId: currentUser.orgId, studentId: currentUser.studentId, studentName: currentUser.name,
-            subject: testQuestions[0].subject || "Test", finalScore: s, startTime: new Date().toLocaleString(), timestamp: Date.now()
-        });
-        location.reload();
-    }
-
-    // --- STANDARD HELPERS ---
-    function openLogin() { document.getElementById('login-modal').classList.remove('hidden'); }
-    function closeLogin() { document.getElementById('login-modal').classList.add('hidden'); }
-    function switchLoginTab(role) {
-        document.getElementById('student-login-fields').classList.toggle('hidden', role !== 'student');
-        document.getElementById('admin-login-fields').classList.toggle('hidden', role !== 'admin');
-    }
-    function logout() { localStorage.removeItem('igniteUser'); auth.signOut().then(() => location.reload()); }
-    function showSection(sec) {
-        ['results-area', 'manager-area', 'users-area', 'roster-area'].forEach(id => document.getElementById(id).classList.add('hidden'));
-        document.getElementById(sec + '-area').classList.remove('hidden');
-        if(sec === 'results') loadResults();
-        if(sec === 'roster') loadRoster();
-    }
-    function showQ() {
-        const q = testQuestions[currentIndex];
-        let h = `<h3>Q${currentIndex+1}</h3><p>${q.q}</p>`;
-        q.options.forEach(o => h += `<label style="display:block; padding:10px; border:1px solid #eee; margin:5px 0;"><input type="radio" name="o" value="${o}" onchange="userAnswers[${currentIndex}]='${o}'; renderNav();"> ${o}</label>`);
-        document.getElementById('question-area').innerHTML = h;
-        document.getElementById('submit-btn').style.display = (currentIndex === 29) ? 'block' : 'none';
-        renderNav();
-    }
-    function renderNav() {
-        const g = document.getElementById('nav-grid'); g.innerHTML = "";
-        for(let i=0; i<30; i++) g.innerHTML += `<button class="btn-nav ${i===currentIndex?'active-nav':''} ${userAnswers[i]?'answered-nav':''}" onclick="currentIndex=${i};showQ();">${i+1}</button>`;
-    }
-    function next() { if(currentIndex < 29) { currentIndex++; showQ(); } }
-    function prev() { if(currentIndex > 0) { currentIndex--; showQ(); } }
-    function startTimer(s) { timerInt = setInterval(() => {
-        let m = Math.floor(s/60), sec = s%60;
-        document.getElementById('timer').innerText = `${m}:${sec<10?'0':''}${sec}`;
-        if(s-- <= 0) finishTest();
-    }, 1000); }
-    async function attemptLogin() {
-        const e = document.getElementById('login-email').value, p = document.getElementById('login-pass').value;
-        try {
-            const u = await auth.signInWithEmailAndPassword(e, p);
-            const snap = await db.ref(`admins/${u.user.uid}`).get();
-            if(snap.exists()) currentUser = { role: snap.val().role, uid: u.user.uid };
-            else {
-                const orgs = await db.ref('orgs').get();
-                orgs.forEach(o => { if(o.val().adminEmail === e) currentUser = { role: 'org', orgId: o.key }; });
-            }
-            localStorage.setItem('igniteUser', JSON.stringify(currentUser));
-            location.reload();
-        } catch(err) { alert(err.message); }
-    }
-    async function createOrg() {
-        const id = document.getElementById('new-org-id').value.toUpperCase(), n = document.getElementById('new-org-name').value, e = document.getElementById('new-org-email').value;
-        await db.ref(`orgs/${id}`).set({ name: n, adminEmail: e }); loadOrgs();
-    }
     async function loadOrgs() {
         const snap = await db.ref('orgs').get();
         const tbody = document.getElementById('orgs-table-body'); tbody.innerHTML = "";
         if(snap.exists()) snap.forEach(c => {
             tbody.innerHTML += `<tr><td>${c.key}</td><td>${c.val().name}</td><td>${c.val().adminEmail}</td><td><button onclick="db.ref('orgs/${c.key}').remove().then(loadOrgs)">Del</button></td></tr>`;
+        });
+    }
+    async function createOrg() {
+        const id = document.getElementById('new-org-id').value.toUpperCase(), n = document.getElementById('new-org-name').value, e = document.getElementById('new-org-email').value;
+        await db.ref(`orgs/${id}`).set({ name: n, adminEmail: e }); loadOrgs();
+    }
+    async function loadQuestions() {
+        const sub = document.getElementById('mgmt-subject').value;
+        const snap = await db.ref('bank/' + sub).get();
+        const tbody = document.getElementById('questions-table-body'); tbody.innerHTML = "";
+        if(snap.exists()) snap.forEach(c => {
+            tbody.innerHTML += `<tr><td>${c.val().q}</td><td>${c.val().archived ? 'Archived':'Live'}</td><td><button onclick="db.ref('bank/${sub}/${c.key}').remove().then(loadQuestions)">Del</button></td></tr>`;
         });
     }
 </script>
